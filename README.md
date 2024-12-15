@@ -15,7 +15,7 @@ cd multivi_splicing_project
 
 ### 2. Clone the Required Repositories
 
-#### Clone my forked 'scvi-tools' repository, called `scvi-tools-splicing`
+#### Clone my forked `scvi-tools` repository, called `scvi-tools-splicing`
 
 Clone the `scvi-tools-splicing` repository:
 
