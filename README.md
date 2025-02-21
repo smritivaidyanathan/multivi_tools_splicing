@@ -61,13 +61,13 @@ conda activate scvi-env
 Install the development dependencies and the package in editable mode:
 
 ```bash
-cd scvi-tools
+cd scvi-tools-splicing
 pip install -e ".[dev]"
 ```
 
 ### 4. Confirm the Installation
 
-(Optional) To confirm that the installation was successful and see where the forked `scvi-tools` is located, run:
+(Optional) To confirm that the installation was successful and see where the forked `scvi-tools-splicing` is located, run:
 
 ```bash
 pip show scvi-tools
