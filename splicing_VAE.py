@@ -38,6 +38,7 @@ from torch.distributions import Normal
 from torch.distributions.kl import kl_divergence
 
 from sklearn.decomposition import PCA
+import umap
 
 # ------------------------------
 # Global Configurations & Directories
@@ -71,6 +72,7 @@ LATENT_DIM = 30
 PATIENCE = 5
 SCHEDULE_STEP_SIZE = 500
 SCHEDULE_GAMMA = 0.1
+TYPE_OF_PLOT = "UMAP"
 LOSS = "Beta_Binomial" #Beta_Binomial or Binomial
 
 # ------------------------------
@@ -113,7 +115,8 @@ params = {
     "PATIENCE": PATIENCE, 
     "SCHEDULE_STEP_SIZE": SCHEDULE_STEP_SIZE, 
     "SCHEDULE_GAMMA": SCHEDULE_GAMMA,
-    "LOSS": LOSS
+    "LOSS": LOSS, 
+    "TYPE_OF_PLOT": TYPE_OF_PLOT
 }
 
 params_file = os.path.join(output_dir, "parameters.json")
@@ -283,8 +286,7 @@ class VAE(nn.Module):
                 f"concentration = {concentration.item():.4f}, mean alpha = {alpha.mean().item():.4f}, mean beta = {beta.mean().item():.4f}",
                 flush=True)
 
-            if ((epoch+1)%5==0):
-                plot_latent_space(self, atse_anndata, output_dir, epoch+1)
+            plot_latent_space(self, atse_anndata, output_dir, epoch+1)
             
             #validation loop
             self.eval()
@@ -412,8 +414,13 @@ def plot_losses(train_losses, val_losses, output_dir):
     plt.close(fig)
     wandb.log({"loss_plot": wandb.Image(loss_plot_path)})
 
+#will do UMAP or PCA depending on TYPE_OF_PLOT parameter + will also output the silouette score of the cell_type_grouped obs field of the latent rep
+#only run every 10 epochs
 def plot_latent_space(model, atse_anndata, output_dir, epoch):
-    # Obtain latent representation from the model
+    if epoch % 10 != 0:
+        return
+
+    #obtain latent representation from the model
     if issparse(atse_anndata.layers['junc_ratio']):
         junc_ratio = torch.tensor(
             atse_anndata.layers['junc_ratio'].toarray(), dtype=torch.float32
@@ -424,18 +431,35 @@ def plot_latent_space(model, atse_anndata, output_dir, epoch):
         )
     latent_reps = model.get_latent_rep(junc_ratio)
     
-    # Apply PCA to reduce dimensionality to 2 components
-    pca_model = PCA(n_components=2)
-    pca_latents = pca_model.fit_transform(latent_reps)
-    
-    # Prepare cell type information
+    #prepare cell type information and labels
     cell_types = atse_anndata.obs['cell_type_grouped']
-    
-    # Create PCA scatter plot
+    labels = cell_types.astype('category').cat.codes
+
+    #Dimensionality reduction based on the chosen type
+    if TYPE_OF_PLOT == "UMAP":
+        reducer = umap.UMAP(n_components=2)
+        embedding = reducer.fit_transform(latent_reps)
+        xlabel = "UMAP 1"
+        ylabel = "UMAP 2"
+        title = "UMAP of Latent Space"
+        plot_path = os.path.join(output_dir, "umap_latent_space.png")
+        wandb_key = f"umap_plot_epoch_{epoch}"
+    elif TYPE_OF_PLOT == "PCA":
+        reducer = PCA(n_components=2)
+        embedding = reducer.fit_transform(latent_reps)
+        xlabel = "Principal Component 1"
+        ylabel = "Principal Component 2"
+        title = "PCA of Latent Space"
+        plot_path = os.path.join(output_dir, "pca_latent_space.png")
+        wandb_key = f"pca_plot_epoch_{epoch}"
+    else:
+        raise ValueError("TYPE_OF_PLOT must be either 'UMAP' or 'PCA'.")
+
+    # create scatter plot
     plt.figure(figsize=(8, 6))
-    scatter = plt.scatter(
-        pca_latents[:, 0], pca_latents[:, 1],
-        c=cell_types.astype('category').cat.codes,
+    plt.scatter(
+        embedding[:, 0], embedding[:, 1],
+        c=labels,
         cmap='tab10', alpha=0.2, s=2
     )
     legend_labels = cell_types.astype('category').cat.categories
@@ -444,16 +468,22 @@ def plot_latent_space(model, atse_anndata, output_dir, epoch):
                    markerfacecolor=plt.cm.tab10(i / len(legend_labels)), markersize=10)
         for i in range(len(legend_labels))
     ]
-    plt.legend(legend_handles, legend_labels, title="cell type group", bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.xlabel("Principal Component 1")
-    plt.ylabel("Principal Component 2")
-    plt.title("PCA of Latent Space")
+    plt.legend(legend_handles, legend_labels, title="Cell Type Group", bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.savefig(plot_path, bbox_inches='tight', dpi=300)
+
+    #compute and log the silhouette score using the raw latent representations
+    from sklearn.metrics import silhouette_score
+    if len(set(labels)) > 1:
+        sil_score = silhouette_score(latent_reps, labels)
+        wandb.log({f"silhouette_score": sil_score})
     
-    # Save and log the plot
-    pca_plot_path = os.path.join(output_dir, "pca_latent_space.png")
-    plt.savefig(pca_plot_path, bbox_inches='tight', dpi=300)
     plt.close()
-    wandb.log({f"pca_plot_epoch_{epoch}": wandb.Image(pca_plot_path)})
+    wandb.log({wandb_key: wandb.Image(plot_path)})
+
+
 
 # ------------------------------
 # Execution: DataLoader Setup, Model Training, and Plotting
