@@ -1,0 +1,62 @@
+method: bayes
+metric:
+  goal: maximize
+  name: silhouette_score
+parameters:
+  MISSING_DATA_METHOD:
+    distribution: categorical
+    values:
+      - LeafletFA
+      - MaskOut
+      - ZeroOut
+  BATCH_SIZE:
+    distribution: categorical
+    values:
+      - 4096
+  LATENT_DIM:
+    distribution: categorical
+    values:
+      - 5
+      - 10
+      - 15
+      - 20
+      - 25
+      - 30
+  LEARNING_RATE:
+    distribution: categorical
+    values:
+      - 0.01
+      - 0.005
+      - 0.001
+      - 0.0005
+  LOSS:
+    distribution: categorical
+    values:
+      - Beta_Binomial
+      - Binomial
+  NUM_HIDDEN_LAYERS:
+    distribution: categorical
+    values:
+      - 1
+  PATIENCE:
+    distribution: categorical
+    values:
+      - 3
+      - 5
+      - 10
+  SCHEDULE_GAMMA:
+    distribution: categorical
+    values:
+      - 0.05
+      - 0.1
+      - 0.5
+      - 0.9
+  SCHEDULE_STEP_SIZE:
+    distribution: categorical
+    values:
+      - 10
+      - 20
+      - 50
+      - 100
+      - 500
+program: /gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/splicing_VAE.py

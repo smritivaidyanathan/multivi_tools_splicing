@@ -43,12 +43,6 @@ import seaborn as sns
 from sklearn.metrics import silhouette_score, silhouette_samples
 
 # ------------------------------
-# Initialize Weights & Biases
-# ------------------------------
-wandb.init(project="splicing_vae_project", config=params)
-config = wandb.config
-
-# ------------------------------
 # Global Configurations & Directories
 # ------------------------------
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -77,18 +71,18 @@ NUM_HIDDEN_LAYERS = 1
 HIDDEN_DIMS = [128, 64]
 LATENT_DIM = 30
 PATIENCE = 5
-SCHEDULE_STEP_SIZE = 500
+SCHEDULE_STEP_SIZE = 50
 SCHEDULE_GAMMA = 0.1
-TYPE_OF_PLOT = "UMAP"
+TYPE_OF_PLOT = "UMAP" #"UMAP" or "PCA"
 LOSS = "Beta_Binomial"  #"Beta_Binomial" or "Binomial"
-MISSING_DATA_METHOD = "MaskOut" #"ZeroOut", "MaskOut", "LeafletFA"
+MISSING_DATA_METHOD = "LeafletFA" #"ZeroOut", "MaskOut", "LeafletFA"
 INPUT_DIM = None
 OUTPUT_DIM = None #INPUT_DIM set after we read the AnnData
 
 # ------------------------------
 # Load Data
 # ------------------------------
-atse_anndata = ad.read_h5ad('/gpfs/commons/groups/knowles_lab/Karin/TMS_MODELING/DATA_FILES/SIMULATED/simulated_data_2025-03-03.h5ad')
+atse_anndata = ad.read_h5ad('/gpfs/commons/groups/knowles_lab/Karin/TMS_MODELING/DATA_FILES/SIMULATED/simulated_data_2025-03-12.h5ad')
 print("Number of features:", atse_anndata.var.shape[0])
 INPUT_DIM = atse_anndata.var.shape[0]
 OUTPUT_DIM = INPUT_DIM
@@ -116,6 +110,29 @@ params_file = os.path.join(output_dir, "parameters.json")
 with open(params_file, "w") as f:
     json.dump(params, f, indent=4)
 
+# ------------------------------
+# Initialize Weights & Biases
+# ------------------------------
+wandb.init(project="splicing_vae_project", config=params)
+config = wandb.config
+
+LEARNING_RATE = config.LEARNING_RATE
+NUM_EPOCHS = config.NUM_EPOCHS
+BATCH_SIZE = config.BATCH_SIZE
+
+USE_CUDA = torch.cuda.is_available()
+device = torch.device('cuda' if USE_CUDA else 'cpu')
+
+NUM_HIDDEN_LAYERS = config.NUM_HIDDEN_LAYERS
+HIDDEN_DIMS = config.HIDDEN_DIMS
+LATENT_DIM = config.LATENT_DIM
+PATIENCE = config.PATIENCE
+SCHEDULE_STEP_SIZE = config.SCHEDULE_STEP_SIZE
+SCHEDULE_GAMMA = config.SCHEDULE_GAMMA
+TYPE_OF_PLOT = config.TYPE_OF_PLOT  # "UMAP" or "PCA"
+LOSS = config.LOSS                  # "Beta_Binomial" or "Binomial"
+MISSING_DATA_METHOD = config.MISSING_DATA_METHOD  # "ZeroOut", "MaskOut", or "LeafletFA"
+
 
 # ------------------------------
 # Junc Ratio Missing Data Handling
@@ -124,8 +141,8 @@ with open(params_file, "w") as f:
 # Adjust NaN Handling or LeafletFA According to MISSING_DATA_METHOD
 #   - If "ZeroOut": fill the junc_ratio layer's NaNs with 0 and do NOT mask.
 #   - If "MaskOut": fill the junc_ratio layer's NaNs with 0 and create 'junc_ratio_NaN_mask'.
-#   - If "LeafletFA": assume we have leaflet_values layer for junc_ratio. No zero fill, no mask.
-
+#   - If "LeafletFA": assume we have imputed_PSI layer for junc_ratio. No zero fill, no mask.
+print(atse_anndata.layers)
 if MISSING_DATA_METHOD == "ZeroOut":
     print("Filling NaNs with 0 in junc_ratio, no mask used.")
     layer = atse_anndata.layers['junc_ratio']
@@ -158,12 +175,12 @@ elif MISSING_DATA_METHOD == "MaskOut":
     atse_anndata.layers['junc_ratio_NaN_mask'] = junc_ratio_mask
 
 elif MISSING_DATA_METHOD == "LeafletFA":
-    print("Using 'leaflet_values' layer instead of 'junc_ratio', no zero fill, no mask.")
-    # For demonstration, let's pretend the user has a layer called "leaflet_values" with no NaNs
-    # We'll rename that to 'junc_ratio' for the model, or just copy it over
-    if 'leaflet_values' not in atse_anndata.layers:
-        raise ValueError("No 'leaflet_values' layer found in AnnData. Please provide it or switch MISSING_DATA_METHOD.")
-    atse_anndata.layers['junc_ratio'] = atse_anndata.layers['leaflet_values']
+    print("Using 'imputed_PSI' layer instead of 'junc_ratio', no zero fill, no mask.")
+    if 'imputed_PSI' not in atse_anndata.layers:
+        raise ValueError("No 'imputed_PSI' layer found in AnnData. Please provide it or switch MISSING_DATA_METHOD.")
+        sys.exit(1)
+    atse_anndata.layers['junc_ratio'] = atse_anndata.layers['imputed_PSI']
+    print(atse_anndata.layers['junc_ratio'])
     # no mask creation needed
 else:
     raise ValueError("MISSING_DATA_METHOD must be one of 'ZeroOut', 'MaskOut', 'LeafletFA'")
@@ -187,7 +204,7 @@ class AnnDataDataset(Dataset):
                 layer_data = layer_data.toarray()
             self.tensors[k] = torch.tensor(layer_data, dtype=torch.float32)
 
-        # (2) If we are in MISSING_DATA_METHOD == "MaskOut", also load junc_ratio_NaN_mask
+        #if we are in MISSING_DATA_METHOD == "MaskOut", also load junc_ratio_NaN_mask
         if MISSING_DATA_METHOD == "MaskOut":
             mask_data = anndata.layers['junc_ratio_NaN_mask']  # a numpy bool array
             self.tensors["junc_ratio_NaN_mask"] = torch.tensor(mask_data, dtype=torch.bool)
@@ -292,6 +309,7 @@ class VAE(nn.Module):
     def train_model(self, loss_function, train_dataloader, val_dataloader, num_epochs, learning_rate, patience):
         device = next(self.parameters()).device
         print("beginning training")
+        wandb.log({"test_log": 1})
 
         model_path = os.path.join(model_dir, "best_model.pth")
         optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
@@ -350,12 +368,14 @@ class VAE(nn.Module):
             train_losses.append(train_epoch_loss)
             scheduler.step()
 
+            current_lr = optimizer.param_groups[0]['lr']
             wandb.log({
                 "epoch": epoch + 1,
                 "train_loss": train_epoch_loss,
                 "concentration": concentration.item(),
                 "mean_alpha": alpha.mean().item(),
-                "mean_beta": beta.mean().item()
+                "mean_beta": beta.mean().item(), 
+                "learning_rate": current_lr
             })
             print(
                 f"epoch {epoch+1}/{num_epochs}; train loss = {train_epoch_loss:.4f}; "
@@ -431,7 +451,7 @@ class VAE(nn.Module):
         return z.cpu().numpy()
 
 # ------------------------------
-# (4) Loss Functions — incorporate a 'mask' parameter
+# Loss Functions — incorporate a 'mask' parameter
 # ------------------------------
 def binomial_loss_function(
     logits, junction_counts, mean, log_vars, n_cluster_counts,
@@ -636,3 +656,5 @@ plot_latent_space(model, atse_anndata, output_dir, epoch=EPOCHS_TRAINED)
 
 print("Script execution completed.", flush=True)
 wandb.finish()
+
+# %%
