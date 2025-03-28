@@ -10,4 +10,4 @@
 # source activate scvi-env
 
 # === [Run the W&B agent for your sweep] ===
-wandb agent sv2785-columbia-university/splicing_vae_project/6hqc115l
+wandb agent sv2785-columbia-university/splicing_vae_project/nhjgsl4t

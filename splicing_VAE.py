@@ -75,9 +75,12 @@ SCHEDULE_STEP_SIZE = 50
 SCHEDULE_GAMMA = 0.1
 TYPE_OF_PLOT = "UMAP" #"UMAP" or "PCA"
 LOSS = "Beta_Binomial"  #"Beta_Binomial" or "Binomial"
-MISSING_DATA_METHOD = "LeafletFA" #"ZeroOut", "MaskOut", "LeafletFA"
+MISSING_DATA_METHOD = "MaskOut" #"ZeroOut", "MaskOut", "LeafletFA"
+MASK_OUT_PERCENTAGE = 0.1 
 INPUT_DIM = None
 OUTPUT_DIM = None #INPUT_DIM set after we read the AnnData
+
+#leaflet mask out, reconstruction
 
 # ------------------------------
 # Load Data
@@ -103,7 +106,8 @@ params = {
     "SCHEDULE_GAMMA": SCHEDULE_GAMMA,
     "LOSS": LOSS,
     "TYPE_OF_PLOT": TYPE_OF_PLOT,
-    "MISSING_DATA_METHOD": MISSING_DATA_METHOD
+    "MISSING_DATA_METHOD": MISSING_DATA_METHOD, 
+    "MASK_OUT_PERCENTAGE":MASK_OUT_PERCENTAGE
 }
 
 params_file = os.path.join(output_dir, "parameters.json")
@@ -129,9 +133,179 @@ LATENT_DIM = config.LATENT_DIM
 PATIENCE = config.PATIENCE
 SCHEDULE_STEP_SIZE = config.SCHEDULE_STEP_SIZE
 SCHEDULE_GAMMA = config.SCHEDULE_GAMMA
-TYPE_OF_PLOT = config.TYPE_OF_PLOT  # "UMAP" or "PCA"
-LOSS = config.LOSS                  # "Beta_Binomial" or "Binomial"
-MISSING_DATA_METHOD = config.MISSING_DATA_METHOD  # "ZeroOut", "MaskOut", or "LeafletFA"
+TYPE_OF_PLOT = config.TYPE_OF_PLOT  #"UMAP" or "PCA"
+LOSS = config.LOSS                  #"Beta_Binomial" or "Binomial"
+MASK_OUT_PERCENTAGE = config.MASK_OUT_PERCENTAGE
+MISSING_DATA_METHOD = config.MISSING_DATA_METHOD  #"ZeroOut", "MaskOut", or "LeafletFA"
+
+
+# ------------------------------
+# Reconstruction Masking for Held-out Evaluation
+# ------------------------------
+
+def generate_recon_mask(adata, layer_key="junc_ratio", mask_percentage=MASK_OUT_PERCENTAGE, seed=42, randomize_seed=False):
+    """
+    Generate a boolean mask for the specified layer in an AnnData object.
+    Only non-NaN entries are considered for masking.
+    
+    Parameters:
+      adata: AnnData object.
+      layer_key: the key of the layer to use (default "junc_ratio").
+      mask_percentage: fraction of valid (non-NaN) entries to mask.
+      seed: integer seed for reproducibility.
+      randomize_seed: if True, a random seed is used.
+      
+    Returns:
+      artificial_mask: Boolean numpy array of same shape as the layer.
+      seed: the seed used.
+    """
+    if randomize_seed:
+        seed = np.random.randint(0, 1000000)
+    np.random.seed(seed)
+    
+    # Get the layer data (dense version)
+    layer_data = adata.layers[layer_key]
+    if sp.issparse(layer_data):
+        layer_data = layer_data.toarray()
+    else:
+        layer_data = layer_data.copy()
+    
+    # Identify valid (non-NaN) entries
+    valid_mask = ~np.isnan(layer_data)
+    valid_indices = np.array(np.where(valid_mask)).T  #each row is [i, j]
+    num_valid = valid_indices.shape[0]
+    
+    num_to_mask = int(num_valid * mask_percentage)
+    if num_to_mask >= num_valid:
+        raise ValueError("mask_percentage is too high; not enough valid entries remain.")
+    
+    # Randomly select indices to mask
+    chosen_indices = valid_indices[np.random.choice(num_valid, num_to_mask, replace=False)]
+    
+    # Create an empty mask and mark the chosen indices as True
+    artificial_mask = np.zeros_like(layer_data, dtype=bool)
+    for idx in chosen_indices:
+        artificial_mask[idx[0], idx[1]] = True
+    
+    print(f"Total valid entries: {num_valid}, entries to mask: {np.sum(artificial_mask)}")
+    return artificial_mask, seed
+
+
+def apply_recon_mask_to_anndata(adata, artificial_mask, layer_key="junc_ratio"):
+    """
+    Apply the reconstruction mask to the specified layer in an AnnData object.
+    For each masked (held-out) entry in the junc_ratio layer, set its value to NaN.
+    Also, update corresponding entries in cell_by_junction_matrix and cell_by_cluster_matrix to 0.
+    
+    Parameters:
+      adata: AnnData object.
+      artificial_mask: Boolean numpy array (same shape as the junc_ratio layer) indicating which entries to mask.
+      layer_key: the key of the layer to mask (default "junc_ratio").
+      
+    Returns:
+      adata: the modified AnnData object.
+    """
+    # Backup original junc_ratio if not already stored.
+    backup_key = "original_" + layer_key
+    if backup_key not in adata.layers:
+        layer_data = adata.layers[layer_key]
+        if sp.issparse(layer_data):
+            layer_data = layer_data.toarray()
+        else:
+            layer_data = layer_data.copy()
+        adata.layers[backup_key] = layer_data.copy()
+        print(f"Backup of {layer_key} stored as {backup_key}.")
+
+    # Update junc_ratio layer: set masked entries to NaN.
+    layer_data = adata.layers[layer_key]
+    if sp.issparse(layer_data):
+        layer_data = layer_data.toarray()
+    else:
+        layer_data = layer_data.copy()
+    
+    layer_data[artificial_mask] = np.nan
+    if sp.issparse(adata.layers[layer_key]):
+        adata.layers[layer_key] = sp.csr_matrix(layer_data)
+    else:
+        adata.layers[layer_key] = layer_data
+    
+    # For cell_by_junction_matrix: set corresponding entries to 0.
+    cj_key = "cell_by_junction_matrix"
+    cj_data = adata.layers[cj_key]
+    if sp.issparse(cj_data):
+        cj_data = cj_data.toarray()
+    cj_data[artificial_mask] = 0
+    adata.layers[cj_key] = sp.csr_matrix(cj_data) if sp.issparse(adata.layers[cj_key]) else cj_data
+    
+    # For cell_by_cluster_matrix: set corresponding entries to 0.
+    cc_key = "cell_by_cluster_matrix"
+    cc_data = adata.layers[cc_key]
+    if sp.issparse(cc_data):
+        cc_data = cc_data.toarray()
+    cc_data[artificial_mask] = 0
+    adata.layers[cc_key] = sp.csr_matrix(cc_data) if sp.issparse(adata.layers[cc_key]) else cc_data
+    
+    print("Artificial mask applied: junc_ratio entries set to NaN and corresponding count matrices updated to 0.")
+    return adata
+
+
+def compute_reconstruction_accuracy(model, adata, mask, layer_key="junc_ratio", metric="MAE"):
+    """
+    Compute the reconstruction error for held-out entries. Note to karin - Should I be using the generative MEAN instead?
+    scVI mentions they used the mean of the NB distribution for imputation accuracy. 
+
+    change junc_ratio to junc_counts
+    
+    Parameters:
+    - model: the trained VAE model.
+    - adata: the AnnData object containing the data.
+    - mask: a boolean mask indicating held-out (corrupted) entries.
+    - layer_key: the key in adata.layers that is used for reconstruction.
+    - metric: which error metric to use. Options are:
+        "MAE" (mean absolute error, default),
+        "MSE" (mean squared error),
+        "median_L1" (median absolute error).
+    
+    Returns:
+    - error: the computed reconstruction error based on the chosen metric.
+    """
+    #get the original data from the backup layer
+    original_data = adata.layers["original_" + layer_key]
+    if sp.issparse(original_data):
+        original_data = original_data.toarray()
+    
+    #we get the corrupted input data (that was used during training)
+    input_data = adata.layers[layer_key]
+    if sp.issparse(input_data):
+        input_data = input_data.toarray()
+    
+    #convert input data to tensor and move to the appropriate device
+    input_tensor = torch.tensor(input_data, dtype=torch.float32).to(next(model.parameters()).device)
+    
+    #obtain model reconstruction. Should I use mean here instead?
+    model.eval()
+    with torch.no_grad():
+        reconstruction, _, _ = model(input_tensor) #check logits before sigmoid
+    reconstruction = reconstruction.detach().cpu().numpy() #sigmoid recon, then multi by corresponding atse counts
+    
+    #then compute differences only on the held-out entries 
+    #as in scvi "distance between the original dataset and the imputed values for corrupted entries only"
+    diff = original_data[mask] - reconstruction[mask]
+    #add spearman correlation
+    if metric == "MSE":
+        error = np.mean(diff ** 2)
+    elif metric == "median_L1":#adding this because this is what scVI used for their imputation accuracy
+        error = np.median(np.abs(diff))
+    else:  #default to MAE (mean absolute error)
+        error = np.mean(np.abs(diff))
+    
+    print(f"Reconstruction {metric} on held-out entries: {error}")
+    return error
+
+#sanity check = same mask each time
+recon_mask, mask_seed = generate_recon_mask(atse_anndata, layer_key="junc_ratio", mask_percentage=MASK_OUT_PERCENTAGE, seed=42, randomize_seed=False)
+
+atse_anndata = apply_recon_mask_to_anndata(atse_anndata, recon_mask, layer_key="junc_ratio")
 
 
 # ------------------------------
@@ -181,9 +355,15 @@ elif MISSING_DATA_METHOD == "LeafletFA":
         sys.exit(1)
     atse_anndata.layers['junc_ratio'] = atse_anndata.layers['imputed_PSI']
     print(atse_anndata.layers['junc_ratio'])
-    # no mask creation needed
+    #no mask creation needed
 else:
     raise ValueError("MISSING_DATA_METHOD must be one of 'ZeroOut', 'MaskOut', 'LeafletFA'")
+
+
+
+
+
+
 
 # ------------------------------
 # DataSet & DataLoader Classes
@@ -427,6 +607,7 @@ class VAE(nn.Module):
 
             if bad_epochs >= patience:
                 print("Early stopping triggered. Ran out of patience", flush=True)
+                print ("Best Validation Loss: {best_val_loss}")
                 break
 
         # load best model weights
@@ -546,9 +727,12 @@ def plot_losses(train_losses, val_losses, output_dir):
     plt.close(fig)
     wandb.log({"loss_plot": wandb.Image(loss_plot_path)})
 
-def plot_latent_space(model, atse_anndata, output_dir, epoch):
-    if epoch % 10 != 0:
+def plot_latent_space(model, atse_anndata, output_dir, epoch, isLastEpoch = False):
+    if epoch % 10 != 0 and isLastEpoch == False:
         return
+    
+    if (isLastEpoch):
+        print(epoch)
 
     if issparse(atse_anndata.layers['junc_ratio']):
         junc_ratio = torch.tensor(
@@ -572,16 +756,24 @@ def plot_latent_space(model, atse_anndata, output_dir, epoch):
         xlabel = "UMAP 1"
         ylabel = "UMAP 2"
         title = "UMAP of Latent Space"
-        plot_path = os.path.join(output_dir, "umap_latent_space.png")
-        wandb_key = f"umap_plot_epoch_{epoch}"
+        name = "umap_latent_space"
+        if isLastEpoch:
+            name = "final_" + name
+        filename = name + ".png"
+        plot_path = os.path.join(output_dir, filename)
+        wandb_key = f"{name}_{epoch}"
     elif TYPE_OF_PLOT == "PCA":
         reducer = PCA(n_components=2)
         embedding = reducer.fit_transform(latent_reps)
         xlabel = "Principal Component 1"
         ylabel = "Principal Component 2"
         title = "PCA of Latent Space"
-        plot_path = os.path.join(output_dir, "pca_latent_space.png")
-        wandb_key = f"pca_plot_epoch_{epoch}"
+        name = "pca_latent_space"
+        if isLastEpoch:
+            name = "final_" + name
+        filename = name + ".png"
+        plot_path = os.path.join(output_dir, filename)
+        wandb_key = f"{name}_{epoch}"
     else:
         raise ValueError("TYPE_OF_PLOT must be either 'UMAP' or 'PCA'.")
 
@@ -625,10 +817,19 @@ def plot_latent_space(model, atse_anndata, output_dir, epoch):
         wandb.log({f"silhouette_boxplot_epoch_{epoch}": wandb.Image(silhouette_plot_path)})
 
     plt.close()
-    wandb.log({wandb_key: wandb.Image(plot_path)})
+    try:
+        if os.path.exists(plot_path):
+            wandb.log({wandb_key: wandb.Image(plot_path)})
+        else:
+            print(f"[Warning] Image file not found: {plot_path}")
+    except Exception as e:
+        print(f"[Error] Failed to log image at {plot_path}: {e}")
+
+
+
 
 # ------------------------------
-# Execution: DataLoader Setup, Model Training, and Plotting
+# Execution: DataLoader Setup, Model Training, Reconstruction Accuracy, and Plotting
 # ------------------------------
 full_dataloader, train_dataloader, val_dataloader = construct_input_dataloaders(atse_anndata, BATCH_SIZE)
 
@@ -652,7 +853,52 @@ train_losses, val_losses = model.train_model(
 )
 plot_losses(train_losses, val_losses, output_dir)
 
-plot_latent_space(model, atse_anndata, output_dir, epoch=EPOCHS_TRAINED)
+
+plot_latent_space(model, atse_anndata, output_dir, epoch=EPOCHS_TRAINED, isLastEpoch= True)
+
+
+# --- Evaluate Reconstruction Accuracy ---
+reconstruction_error_MAE = compute_reconstruction_accuracy(
+    model,
+    atse_anndata,
+    mask=recon_mask,
+    layer_key="junc_ratio",
+    metric="MAE"  # or "MSE" if you prefer
+)
+wandb.log({"reconstruction_error_MAE": reconstruction_error_MAE})
+
+reconstruction_error_MSE = compute_reconstruction_accuracy(
+    model,
+    atse_anndata,
+    mask=recon_mask,
+    layer_key="junc_ratio",
+    metric="MSE"
+)
+wandb.log({"reconstruction_error_MSE": reconstruction_error_MSE})
+
+reconstruction_error_median_L1 = compute_reconstruction_accuracy(
+    model,
+    atse_anndata,
+    mask=recon_mask,
+    layer_key="junc_ratio",
+    metric="median_L1"
+)
+wandb.log({"reconstruction_error_L1": reconstruction_error_median_L1})
+
+# --- Compute Final Silhouette Score ---
+if "cell_type_grouped" in atse_anndata.obs.columns:
+    if sp.issparse(atse_anndata.layers['junc_ratio']):
+        full_input = torch.tensor(atse_anndata.layers['junc_ratio'].toarray(), dtype=torch.float32)
+    else:
+        full_input = torch.tensor(atse_anndata.layers['junc_ratio'], dtype=torch.float32)
+    
+    latent_reps = model.get_latent_rep(full_input)
+    cell_types = atse_anndata.obs['cell_type_grouped']
+    labels = cell_types.astype('category').cat.codes
+    final_silhouette_score = silhouette_score(latent_reps, labels)
+    print(f"Final silhouette score: {final_silhouette_score}")
+    wandb.log({"final_silhouette_score": final_silhouette_score})
+
 
 print("Script execution completed.", flush=True)
 wandb.finish()

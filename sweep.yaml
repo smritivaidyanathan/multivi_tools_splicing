@@ -1,4 +1,4 @@
-method: bayes
+method: grid
 metric:
   goal: maximize
   name: silhouette_score
@@ -17,22 +17,13 @@ parameters:
     distribution: categorical
     values:
       - 5
-      - 10
-      - 15
-      - 20
-      - 25
-      - 30
   LEARNING_RATE:
     distribution: categorical
     values:
-      - 0.01
-      - 0.005
-      - 0.001
       - 0.0005
   LOSS:
     distribution: categorical
     values:
-      - Beta_Binomial
       - Binomial
   NUM_HIDDEN_LAYERS:
     distribution: categorical
@@ -41,22 +32,22 @@ parameters:
   PATIENCE:
     distribution: categorical
     values:
-      - 3
-      - 5
       - 10
   SCHEDULE_GAMMA:
     distribution: categorical
     values:
-      - 0.05
-      - 0.1
       - 0.5
-      - 0.9
   SCHEDULE_STEP_SIZE:
     distribution: categorical
     values:
-      - 10
-      - 20
-      - 50
-      - 100
       - 500
+  MASK_OUT_PERCENTAGE:
+    distribution: categorical
+    values:
+      - 0.3
+      - 0.2
+      - 0.1
+      - 0.05
+      - 0.01
+
 program: /gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/splicing_VAE.py
