@@ -5,11 +5,11 @@ print("Starting MultiVI-Splice pipeline...")
 # ------------------------------ #
 # 0. Configure Paths
 # ------------------------------ #
-MUDATA_PATH = "/gpfs/commons/groups/knowles_lab/Karin/TMS_MODELING/DATA_FILES/BRAIN_ONLY/02112025/TMS_BRAINONLY_MUDATA_GE_ATSE.h5mu"
+MUDATA_PATH = "/gpfs/commons/groups/knowles_lab/Karin/TMS_MODELING/DATA_FILES/ALL_CELLS/022025/TMS_MUData_GE_ATSE_20250209_165655.h5mu"
 MODEL_SAVE_DIR = "/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/models"
 IMPUTED_DFS_PATH = "/gpfs/commons/home/svaidyanathan/dfs/imputed_dfs.h5"
-OUTPUT_UPDATED_MUDATA = "/gpfs/commons/groups/knowles_lab/Karin/TMS_MODELING/DATA_FILES/BRAIN_ONLY/02112025/MULTVI_TMS_BRAINONLY_MUDATA_GE_ATSE.h5mu"
-FIGURE_OUTPUT_DIR = "/gpfs/commons/home/svaidyanathan/figures"
+OUTPUT_UPDATED_MUDATA = "/gpfs/commons/groups/knowles_lab/Karin/TMS_MODELING/DATA_FILES/ALL_CELLS/022025/UPDATED_TMS_MUData_GE_ATSE_20250209_165655.h5mu"
+FIGURE_OUTPUT_DIR = "/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/figures"
 import os
 os.makedirs(FIGURE_OUTPUT_DIR, exist_ok=True)
 
@@ -138,5 +138,5 @@ else:
 # ------------------------------ #
 # 11. Done
 # ------------------------------ #
-wandb.finish()
 print("Pipeline complete.")
+wandb.finish()
