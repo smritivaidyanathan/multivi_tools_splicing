@@ -126,26 +126,16 @@ class PartialEncoder(nn.Module):
         h_out = h_out_flat.view(batch_size, self.input_dim, self.code_dim)  # Shape: (B, D, K)
 
         # Step 6: Apply the mask. Zero out representations of missing features.
-        # Ensure mask is float for multiplication if it isn't already.
-        mask_float = mask.float() # Convert mask to float if it's int/bool
+        mask_float = mask.float() 
         # Expand mask: (B, D) -> (B, D, 1) for broadcasting
         mask_exp = mask_float.unsqueeze(-1)                           # Shape: (B, D, 1)
         h_masked = h_out * mask_exp                             # Shape: (B, D, K)
 
         # Step 7: Aggregate over observed features (permutation-invariant function g)
-        # Summation is a common choice for aggregation.
-        # Sum along the feature dimension (dim=1)
-        # Combining Features Per Cell 
+        # Sum along the feature dimension (dim=1) --> combining Features Per Cell 
         c = h_masked.sum(dim=1)                                 # Shape: (B, K)
 
-        # Optional: Normalize aggregation by the number of observed features (Mean aggregation)
-        # This can make the aggregated representation 'c' less dependent on the *number* of observed features.
-        # num_observed = mask_float.sum(dim=1, keepdim=True) # Shape: (B, 1)
-        # # Avoid division by zero if a sample has no observed features (add small epsilon)
-        # c = c / (num_observed + 1e-8) # Shape: (B, K)
-        # Uncomment the 3 lines above if you prefer mean aggregation over sum aggregation.
-
-        # Step 8: Pass the aggregated representation 'c' through the final MLP (phi)
+        # Step 8: Pass the aggregated representation 'c' through the final MLP 
         enc_out = self.encoder_mlp(c)                           # Shape: (B, 2*Z)
 
         # Step 9: Split the output into mean (mu) and log variance (logvar)
@@ -165,9 +155,6 @@ class PartialDecoder(nn.Module):
             nn.Linear(latent_dim, decoder_hidden_dim),
             nn.ReLU(),
             nn.Dropout(dropout_rate),
-            # Optional project down if needed, depends on how you combine
-            # nn.Linear(decoder_hidden_dim, code_dim),
-            # nn.ReLU()
         )
 
         # Input: processed_z + F_d + b_d
@@ -176,7 +163,6 @@ class PartialDecoder(nn.Module):
             nn.ReLU(),
             nn.Dropout(dropout_rate),
             nn.Linear(decoder_hidden_dim, 1) # Predict 1 value per feature
-            # Add final activation (e.g., nn.Sigmoid()) if output should be bounded
         )
 
     def forward(self, z: torch.Tensor, feature_embedding: nn.Parameter, feature_bias: nn.Parameter) -> torch.Tensor:
@@ -193,7 +179,8 @@ class PartialDecoder(nn.Module):
         j_input_flat = j_input.view(-1, j_input.shape[-1])
         j_out_flat = self.j_layer(j_input_flat)
         reconstruction = j_out_flat.view(batch_size, self.output_dim)
-        # reconstruction = torch.sigmoid(reconstruction) # Example activation
+        # do we need to do sigmoid here? 
+        # reconstruction = torch.sigmoid(reconstruction) 
         return reconstruction
     
 class PartialVAE(nn.Module):
@@ -244,11 +231,9 @@ class PartialVAE(nn.Module):
 
         # Add learnable concentration parameter if requested (for beta-binomial)
         if self.learn_concentration:
-            # Initialize concentration positively (e.g., starting near 1 or 10)
-            # Using log makes optimization more stable. exp(0) = 1. exp(log(10)) = 10.
-            self.log_concentration = nn.Parameter(torch.tensor(np.log(10.0))) # Example: start concentration near 10
+            self.log_concentration = nn.Parameter(torch.tensor(np.log(2))) 
         else:
-             self.log_concentration = None # Indicate it's not used
+             self.log_concentration = None 
 
     def reparameterize(self, mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
         """
@@ -276,11 +261,8 @@ class PartialVAE(nn.Module):
                 - mu (torch.Tensor): Latent mean (batch_size, latent_dim).
                 - logvar (torch.Tensor): Latent log variance (batch_size, latent_dim).
         """
-        # Device handling happens in training loop or inference script
-        # x = x.to(next(self.parameters()).device)
-        # mask = mask.to(next(self.parameters()).device)
 
-        # 1. Encode - Pass BOTH x and mask
+        # 1. Encode - Pass x and mask
         mu, logvar = self.encoder(x, mask)
 
         # 2. Reparameterize
@@ -292,7 +274,7 @@ class PartialVAE(nn.Module):
         return reconstruction, mu, logvar
 
     def train_model(self, loss_function, train_dataloader, val_dataloader, num_epochs,
-                   learning_rate, patience, fixed_concentration=None, # Added option for fixed concentration
+                   learning_rate, patience, fixed_concentration=None, 
                    schedule_step_size=50, schedule_gamma=0.1,
                    output_dir=None, wandb_logging=False,
                    input_key='x', # Key for input data in batch dict
@@ -364,7 +346,7 @@ class PartialVAE(nn.Module):
 
                 optimizer.zero_grad()
 
-                # Forward pass - REQUIRES BOTH x AND mask
+                # Forward pass - REQUIRES x AND mask
                 reconstruction, mu, logvar = self.forward(x_batch, mask_batch)
 
                 # Determine concentration for loss
@@ -425,7 +407,7 @@ class PartialVAE(nn.Module):
                     # Forward pass
                     reconstruction, mu, logvar = self.forward(x_batch, mask_batch)
 
-                    # Determine concentration (consistent with training logic)
+                    # Determine concentration 
                     if fixed_concentration is not None:
                         concentration_val = torch.tensor(fixed_concentration, device=device, dtype=torch.float32)
                     elif self.learn_concentration and self.log_concentration is not None:
@@ -447,7 +429,7 @@ class PartialVAE(nn.Module):
                     )
                     epoch_val_loss += val_batch_loss.item()
 
-            avg_val_loss = epoch_val_loss / k_val # Average per-batch validation loss
+            avg_val_loss = epoch_val_loss / k_val # Average per-batch validation loss, is this right?
             val_losses.append(avg_val_loss)
 
             print(f"          | Val Loss:   {avg_val_loss:.4f}", flush=True)
@@ -456,7 +438,7 @@ class PartialVAE(nn.Module):
             if avg_val_loss < best_val_loss:
                 print(f"          | Val loss improved ({best_val_loss:.4f} -> {avg_val_loss:.4f}")
                 best_val_loss = avg_val_loss
-                bad_epochs = 0 # Reset patience counter
+                bad_epochs = 0 
             else:
                 bad_epochs += 1
                 print(f"          | Val loss did not improve. Bad epochs: {bad_epochs}/{patience}")
@@ -530,7 +512,6 @@ def binomial_loss_function(
       total_loss: Combined reconstruction and KL loss.
     """
 
-    # If mask is not None (we are masking NaNs), we apply it to skip missing features in the log-likelihood
     logits = logits[mask]
     junction_counts = junction_counts[mask]
     n_cluster_counts = n_cluster_counts[mask]
@@ -548,7 +529,7 @@ def binomial_loss_function(
     # --- KL Divergence Calculation ---
     # Clamp log_vars to a reasonable range to prevent exp() from overflowing
     # Values below -10 result in exp() close to 0, values above ~20 can risk overflow/instability
-    log_vars_clipped = torch.clamp(log_vars, min=-10, max=20) # Adjust max if needed
+    log_vars_clipped = torch.clamp(log_vars, min=-10, max=20)
 
     # Calculate standard deviation safely using the clipped log_vars
     std_dev = torch.sqrt(torch.exp(log_vars_clipped))
