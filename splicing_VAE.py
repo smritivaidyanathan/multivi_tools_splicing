@@ -307,7 +307,6 @@ recon_mask, mask_seed = generate_recon_mask(atse_anndata, layer_key="junc_ratio"
 
 atse_anndata = apply_recon_mask_to_anndata(atse_anndata, recon_mask, layer_key="junc_ratio")
 
-
 # ------------------------------
 # Junc Ratio Missing Data Handling
 # ------------------------------
@@ -825,82 +824,3 @@ def plot_latent_space(model, atse_anndata, output_dir, epoch, isLastEpoch = Fals
     except Exception as e:
         print(f"[Error] Failed to log image at {plot_path}: {e}")
 
-
-
-
-# ------------------------------
-# Execution: DataLoader Setup, Model Training, Reconstruction Accuracy, and Plotting
-# ------------------------------
-full_dataloader, train_dataloader, val_dataloader = construct_input_dataloaders(atse_anndata, BATCH_SIZE)
-
-model = VAE(INPUT_DIM, NUM_HIDDEN_LAYERS, HIDDEN_DIMS, LATENT_DIM, OUTPUT_DIM)
-model.to(device)
-
-if LOSS == "Binomial":
-    loss_function = binomial_loss_function
-elif LOSS == "Beta_Binomial":
-    loss_function = beta_binomial_loss_function
-else:
-    raise ValueError("LOSS must be 'Binomial' or 'Beta_Binomial'")
-
-train_losses, val_losses = model.train_model(
-    loss_function,
-    train_dataloader,
-    val_dataloader,
-    NUM_EPOCHS,
-    learning_rate=LEARNING_RATE,
-    patience=PATIENCE
-)
-plot_losses(train_losses, val_losses, output_dir)
-
-
-plot_latent_space(model, atse_anndata, output_dir, epoch=EPOCHS_TRAINED, isLastEpoch= True)
-
-
-# --- Evaluate Reconstruction Accuracy ---
-reconstruction_error_MAE = compute_reconstruction_accuracy(
-    model,
-    atse_anndata,
-    mask=recon_mask,
-    layer_key="junc_ratio",
-    metric="MAE"  # or "MSE" if you prefer
-)
-wandb.log({"reconstruction_error_MAE": reconstruction_error_MAE})
-
-reconstruction_error_MSE = compute_reconstruction_accuracy(
-    model,
-    atse_anndata,
-    mask=recon_mask,
-    layer_key="junc_ratio",
-    metric="MSE"
-)
-wandb.log({"reconstruction_error_MSE": reconstruction_error_MSE})
-
-reconstruction_error_median_L1 = compute_reconstruction_accuracy(
-    model,
-    atse_anndata,
-    mask=recon_mask,
-    layer_key="junc_ratio",
-    metric="median_L1"
-)
-wandb.log({"reconstruction_error_L1": reconstruction_error_median_L1})
-
-# --- Compute Final Silhouette Score ---
-if "cell_type_grouped" in atse_anndata.obs.columns:
-    if sp.issparse(atse_anndata.layers['junc_ratio']):
-        full_input = torch.tensor(atse_anndata.layers['junc_ratio'].toarray(), dtype=torch.float32)
-    else:
-        full_input = torch.tensor(atse_anndata.layers['junc_ratio'], dtype=torch.float32)
-    
-    latent_reps = model.get_latent_rep(full_input)
-    cell_types = atse_anndata.obs['cell_type_grouped']
-    labels = cell_types.astype('category').cat.codes
-    final_silhouette_score = silhouette_score(latent_reps, labels)
-    print(f"Final silhouette score: {final_silhouette_score}")
-    wandb.log({"final_silhouette_score": final_silhouette_score})
-
-
-print("Script execution completed.", flush=True)
-wandb.finish()
-
-# %%
