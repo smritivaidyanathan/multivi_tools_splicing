@@ -42,23 +42,20 @@ class PartialEncoder(nn.Module):
         self.code_dim = code_dim
         self.latent_dim = latent_dim
 
-        # Learnable feature embedding (F_d in paper notation)
+        # Learnable feature embedding (F_d in paper notation) with Xavier/Glorot initialization
         # Shape: (D, K)
         self.feature_embedding = nn.Parameter(torch.randn(input_dim, code_dim))
+        nn.init.xavier_uniform_(self.feature_embedding)
 
-        # Learnable bias term per feature (b_d in paper notation)
-        # Shape: (D, 1)
-        self.feature_bias = nn.Parameter(torch.zeros(input_dim, 1))
-
-        # Shared function h(.) applied to each feature representation s_d = [x_d, F_d, b_d]
-        # Input dim: 1 (feature value) + K (embedding) + 1 (bias) = K + 2
+        # Shared function h(.) applied to each feature representation s_d = [x_d, F_d]
+        # Input dim: 1 (feature value) + K (embedding) = K + 1
         # Output dim: K (code_dim)
         self.h_layer = nn.Sequential(
-            nn.Linear(1 + code_dim + 1, h_hidden_dim),
+            nn.Linear(1 + code_dim, h_hidden_dim),
             nn.ReLU(),
-            nn.Dropout(dropout_rate), # Added dropout
+            nn.Dropout(dropout_rate), 
             nn.Linear(h_hidden_dim, code_dim),
-            nn.ReLU() # ReLU after last linear is common in intermediate feature extractors
+            nn.ReLU()
         )
 
         # MLP to map aggregated representation 'c' to latent distribution parameters
@@ -67,7 +64,7 @@ class PartialEncoder(nn.Module):
         self.encoder_mlp = nn.Sequential(
             nn.Linear(code_dim, encoder_hidden_dim),
             nn.ReLU(),
-            nn.Dropout(dropout_rate), # Added dropout
+            nn.Dropout(dropout_rate), 
             nn.Linear(encoder_hidden_dim, 2 * latent_dim) # outputs both mu and logvar
         )
 
@@ -102,22 +99,16 @@ class PartialEncoder(nn.Module):
         # Step 1: Reshape inputs for processing each feature independently
         # Flatten batch and feature dimensions: (B, D) -> (B*D, 1)
         x_flat = x.reshape(-1, 1)                                # Shape: (B*D, 1)
-        # mask_flat = mask.reshape(-1, 1)                        # Shape: (B*D, 1) - Not directly used here, but illustrates the mapping
 
         # Step 2: Prepare feature embeddings and biases for each item in the flattened batch
         # Feature embeddings F_d: (D, K) -> (B*D, K) by repeating for each batch item
-        # Feature biases b_d: (D, 1) -> (B*D, 1) by repeating for each batch item
 
-        # Efficient expansion using broadcasting: expand creates views without copying memory initially, reshape makes it contiguous if needed later
-        # unsqueeze(0) adds batch dim: (D, K) -> (1, D, K)
-        # expand(batch_size, -1, -1) repeats view across batch dim: (1, D, K) -> (B, D, K)
-        # reshape(-1, self.code_dim) flattens B and D dims: (B, D, K) -> (B*D, K)
+        # Efficient expansion using broadcasting
         F_embed = self.feature_embedding.unsqueeze(0).expand(batch_size, -1, -1).reshape(-1, self.code_dim) # Shape: (B*D, K)
-        b_embed = self.feature_bias.unsqueeze(0).expand(batch_size, -1, -1).reshape(-1, 1)                   # Shape: (B*D, 1)
 
         # Step 3: Construct input for the shared 'h' function for each feature instance
-        # Input s_d = [x_d, F_d, b_d]
-        h_input = torch.cat([x_flat, F_embed, b_embed], dim=1)  # Shape: (B*D, 1 + K + 1)
+        # Input s_d = [x_d, F_d]
+        h_input = torch.cat([x_flat, F_embed], dim=1)  # Shape: (B*D, 1 + K + 1)
 
         # Step 4: Apply the shared h network to each feature representation s_d
         h_out_flat = self.h_layer(h_input)                      # Shape: (B*D, K)
@@ -143,48 +134,37 @@ class PartialEncoder(nn.Module):
 
         return mu, logvar
 
-# Assume PartialDecoder is defined as we designed it previously:
-class PartialDecoder(nn.Module):
-    def __init__(self, latent_dim: int, decoder_hidden_dim: int, output_dim: int, code_dim: int, dropout_rate: float = 0.0):
+class LinearDecoder(nn.Module):
+    def __init__(self, latent_dim: int, output_dim: int):
+        """
+        Simple linear decoder that directly maps from latent space to output space.
+        
+        Parameters:
+          latent_dim (int): Dimension of latent space (Z).
+          output_dim (int): Dimension of output space (D).
+        """
         super().__init__()
         self.latent_dim = latent_dim
         self.output_dim = output_dim
-        self.code_dim = code_dim
-
-        self.z_processor = nn.Sequential(
-            nn.Linear(latent_dim, decoder_hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(dropout_rate),
-        )
-
-        # Input: processed_z + F_d + b_d
-        self.j_layer = nn.Sequential(
-            nn.Linear(decoder_hidden_dim + code_dim + 1, decoder_hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(dropout_rate),
-            nn.Linear(decoder_hidden_dim, 1) # Predict 1 value per feature
-        )
-
-    def forward(self, z: torch.Tensor, feature_embedding: nn.Parameter, feature_bias: nn.Parameter) -> torch.Tensor:
-        batch_size = z.size(0)
-        if feature_embedding.shape != (self.output_dim, self.code_dim) or feature_bias.shape != (self.output_dim, 1):
-             raise ValueError("Feature embedding/bias shapes mismatch in decoder forward.")
-
-        processed_z = self.z_processor(z)
-        processed_z_expanded = processed_z.unsqueeze(1).expand(-1, self.output_dim, -1)
-        F_embed_expanded = feature_embedding.unsqueeze(0).expand(batch_size, -1, -1)
-        b_embed_expanded = feature_bias.unsqueeze(0).expand(batch_size, -1, -1)
-
-        j_input = torch.cat([processed_z_expanded, F_embed_expanded, b_embed_expanded], dim=2)
-        j_input_flat = j_input.view(-1, j_input.shape[-1])
-        j_out_flat = self.j_layer(j_input_flat)
-        reconstruction = j_out_flat.view(batch_size, self.output_dim)
-        # do we need to do sigmoid here? 
-        # reconstruction = torch.sigmoid(reconstruction) 
-        return reconstruction
+        
+        # Simple linear layer from latent space to output space
+        self.linear = nn.Linear(latent_dim, output_dim)
+    
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the decoder.
+        
+        Args:
+            z (torch.Tensor): Latent vector (batch_size, latent_dim).
+            
+        Returns:
+            torch.Tensor: Reconstructed data (batch_size, output_dim).
+        """
+        # Direct linear mapping from latent to output
+        return self.linear(z)
     
 class PartialVAE(nn.Module):
-    def __init__(self, input_dim: int, code_dim: int, h_hidden_dim: int, encoder_hidden_dim: int, latent_dim: int, decoder_hidden_dim: int, dropout_rate: float = 0.0, learn_concentration: bool = True):
+    def __init__(self, input_dim: int, code_dim: int, h_hidden_dim: int, encoder_hidden_dim: int, latent_dim: int, dropout_rate: float = 0.0, learn_concentration: bool = True):
         """
         Partial Variational Autoencoder using PointNet-like Encoder/Decoder.
 
@@ -194,14 +174,13 @@ class PartialVAE(nn.Module):
           h_hidden_dim (int): Hidden dimension for the encoder's shared h_layer.
           encoder_hidden_dim (int): Hidden dimension for the encoder's final MLP.
           latent_dim (int): Dimension of latent space (Z).
-          decoder_hidden_dim (int): Hidden dimension for the decoder's shared j_layer and z_processor.
           dropout_rate (float): Dropout rate for regularization.
           learn_concentration (bool): If True, add a learnable parameter for beta-binomial concentration.
         """
         super().__init__()
 
         # --- Parameter Validation ---
-        if not all(isinstance(i, int) and i > 0 for i in [input_dim, code_dim, h_hidden_dim, encoder_hidden_dim, latent_dim, decoder_hidden_dim]):
+        if not all(isinstance(i, int) and i > 0 for i in [input_dim, code_dim, h_hidden_dim, encoder_hidden_dim, latent_dim]):
              raise ValueError("All dimensions must be positive integers.")
         if not isinstance(dropout_rate, float) or not (0.0 <= dropout_rate < 1.0):
              raise ValueError("dropout_rate must be a float between 0.0 and 1.0 (exclusive of 1.0)")
@@ -220,13 +199,10 @@ class PartialVAE(nn.Module):
             dropout_rate=dropout_rate
         )
 
-        # Instantiate the Partial Decoder
-        self.decoder = PartialDecoder(
+        # Instantiate the Linear Decoder
+        self.decoder = LinearDecoder(
             latent_dim=latent_dim,
-            decoder_hidden_dim=decoder_hidden_dim,
-            output_dim=input_dim, # Output dim must match input dim for reconstruction
-            code_dim=code_dim,
-            dropout_rate=dropout_rate
+            output_dim=input_dim  # Output dim must match input dim for reconstruction
         )
 
         # Add learnable concentration parameter if requested (for beta-binomial)
@@ -268,15 +244,15 @@ class PartialVAE(nn.Module):
         # 2. Reparameterize
         z = self.reparameterize(mu, logvar)
 
-        # 3. Decode - Pass z AND the learned embeddings/biases from the encoder
-        reconstruction = self.decoder(z, self.encoder.feature_embedding, self.encoder.feature_bias)
+        # 3. Decode - Simply pass z to the linear decoder
+        reconstruction = self.decoder(z)
 
         return reconstruction, mu, logvar
 
     def train_model(self, loss_function, train_dataloader, val_dataloader, num_epochs,
                    learning_rate, patience, fixed_concentration=None, 
                    schedule_step_size=50, schedule_gamma=0.1,
-                   output_dir=None, wandb_logging=False,
+                   output_dir=None, 
                    input_key='x', # Key for input data in batch dict
                    mask_key='mask', # Key for mask in batch dict
                    junction_counts_key='junction_counts', # Key for junction counts

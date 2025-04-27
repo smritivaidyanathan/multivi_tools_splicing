@@ -66,7 +66,7 @@ class AnnDataDataset(Dataset):
         Returns:
             Dict[str, torch.Tensor]: A dictionary containing:
                 'x': Input features tensor (from x_layer, NaNs replaced with 0.0). Shape (n_vars,).
-                'mask': Binary mask tensor (1 where x was observed, 0 where NaN). Shape (n_vars,).
+                'mask': Binary mask tensor (1 where ATSE counts exist, 0 where they don't). Shape (n_vars,).
                 'junction_counts': Junction counts tensor. Shape (n_vars,).
                 'cluster_counts': Cluster counts tensor. Shape (n_vars,).
         """
@@ -98,9 +98,10 @@ class AnnDataDataset(Dataset):
         else:
              cluster_counts = np.array(cluster_counts).flatten().copy()
 
-        # --- Create the mask based on NaNs in x_data ---
-        # Mask is True where data is NOT NaN, False where it IS NaN
-        mask_np = (~np.isnan(x_data)) # Keep as boolean numpy array
+        # --- Create the mask based on ATSE counts existence ---
+        # Mask is True where ATSE counts exist (not zero or missing)
+        # This ensures we only include junctions where ATSE counts are available
+        mask_np = (cluster_counts > 0)  # ATSE counts must be positive to be considered valid
 
         # --- Handle NaNs in x_data for model input ---
         x_data_clean = np.nan_to_num(x_data, nan=0.0)
@@ -108,13 +109,13 @@ class AnnDataDataset(Dataset):
         # --- Convert to PyTorch Tensors ---
         x_tensor = torch.from_numpy(x_data_clean).float()
         # Create a BOOLEAN tensor for the mask
-        mask_tensor = torch.from_numpy(mask_np).bool()  # <--- FIX: Use .bool()
+        mask_tensor = torch.from_numpy(mask_np).bool()
         junction_counts_tensor = torch.from_numpy(junction_counts).float()
         cluster_counts_tensor = torch.from_numpy(cluster_counts).float()
 
         return {
             'x': x_tensor,
-            'mask': mask_tensor, # Now returns a boolean tensor
+            'mask': mask_tensor, # Now returns a boolean tensor based on ATSE count existence
             'junction_counts': junction_counts_tensor,
             'cluster_counts': cluster_counts_tensor,
         }
