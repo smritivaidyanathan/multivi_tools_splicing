@@ -28,7 +28,7 @@ os.makedirs(FIGURE_OUTPUT_DIR, exist_ok=True)
 print("Figure output directory:", FIGURE_OUTPUT_DIR)
 
 # Percent missing parameters
-PCT_MISSING_RNA = 0.2       # fraction of cells×genes to mask in gene expression
+PCT_MISSING_RNA = 0       # fraction of cells×genes to mask in gene expression
 PCT_MISSING_SPLICE = 0.2    # fraction of cells×junctions to mask in splicing
 SEED = 42
 
@@ -170,7 +170,8 @@ def evaluate_imputation(
     For Splicing:
       - original = (coords, array of shape (N,3): [atse, true_junc_counts, true_ratio])
       - imputed is assumed to be the raw ratio p
-      - reconstruct imputed counts = p * atse, then compare to true_junc_counts
+      - reconstruct imputed counts = p * atse, then compare to true_junc_counts for MSE and Median L1
+      - for spearman correlation, check the raw ratio p and compare it to true ratio
     """
     coords, orig_vals = original
     # extract the imputed vals at exactly those coords
@@ -179,13 +180,11 @@ def evaluate_imputation(
     # detect splice vs GE by shape of orig_vals
     if orig_vals.ndim == 2 and orig_vals.shape[1] == 3:
         # splice case
-        atse            = orig_vals[:, 0]
-        true_junc       = orig_vals[:, 1]
+        true_ratio       = orig_vals[:, 2]
         # we ignore orig_vals[:,2] (the original ratio) here
         # reconstruct counts from ratio
-        imp_junc_counts = imp_vals * atse
-        diff = imp_junc_counts - true_junc
-        x1, x2 = true_junc, imp_junc_counts
+        diff = imp_vals - true_ratio
+        x1, x2 = true_ratio, imp_vals
     else:
         # GE case: orig_vals is a 1D array of counts
         true_counts = orig_vals
@@ -195,6 +194,8 @@ def evaluate_imputation(
     mse     = np.mean(diff**2)
     med_l1  = np.median(np.abs(diff))
     rho, _  = spearmanr(x1, x2)
+
+    #add scatter plot
 
     return {'mse': mse, 'median_l1': med_l1, 'spearman': rho}
 
@@ -278,8 +279,8 @@ imp_expr_counts = expr_norm * lib[:, None]
 imp_spl = model.get_normalized_splicing(return_numpy=True, junction_list=None) #should be the raw ratios, ie, "p" from generative outputs
 
 # evaluate only masked entries
-metrics_rna = evaluate_imputation(orig_vals['rna'], imp_expr_counts.values)
-metrics_spl = evaluate_imputation(orig_vals['splice'], imp_spl.values)
+metrics_rna = evaluate_imputation(orig_vals['rna'], imp_expr_counts)
+metrics_spl = evaluate_imputation(orig_vals['splice'], imp_spl)
 
 
 # log to W&B
@@ -309,31 +310,42 @@ print(
 # 3. Plot with different color labels.
 
 print("Plotting UMAPs")
-# %%
-MULTIVI_LATENT_KEY = "X_multivi"
-mdata_corr.obsm[MULTIVI_LATENT_KEY] = model.get_latent_representation()
+# ------------------------------ #
+# 8. Latent Representation + UMAP
+# ------------------------------ #
+print("Computing latent representation and UMAP...")
+latent_key = "X_multivi"
+mdata_corr["rna"].obsm[latent_key] = model.get_latent_representation()
 
-sc.pp.neighbors(mdata_corr, use_rep=MULTIVI_LATENT_KEY)
-sc.tl.umap(mdata_corr, min_dist=0.2)
+sc.pp.neighbors(mdata_corr["rna"], use_rep=latent_key)
+sc.tl.umap(mdata_corr["rna"], min_dist=0.2)
+print("UMAP complete.")
 
-# Plot by different obs fields (save + log to W&B)
-fields_to_plot = ["cell_type_grouped", "modality", "age", "sex"]
-for field in fields_to_plot:
-    if field in mdata_corr.obs.columns:
-        print(f"Plotting UMAP for: {field}")
-        ax = sc.pl.umap(mdata_corr, color=field, show=False)
-        fig = ax.get_figure()
-        fig_path = os.path.join(FIGURE_OUTPUT_DIR, f"umap_{field}.png")
-        fig.savefig(fig_path, dpi=300, bbox_inches="tight")
-        wandb.log({f"umap_{field}": wandb.Image(fig_path)})
-        plt.close(fig)
-        print(f"Saved and logged: {fig_path}")
-    else:
-        print(f"Field '{field}' not found in .obs — skipping.")
+# ------------------------------ #
+# 9. Plot and Save UMAP (only cell_type_grouped)
+# ------------------------------ #
+group = "cell_type_grouped"
+if group in mdata_corr["rna"].obs.columns:
+    print(f"Creating UMAP plot for: {group}")
+    fig = sc.pl.umap(mdata_corr["rna"], color=group, show=False)
+    fig_path = os.path.join(FIGURE_OUTPUT_DIR, f"umap_{group}.png")
+    fig.figure.savefig(fig_path, dpi=300, bbox_inches="tight")
+    wandb.log({f"umap_{group}": wandb.Image(fig_path)})
+    print(f"UMAP figure saved and logged: {fig_path}")
+    plt.close(fig.figure)
+else:
+    print(f"Column '{group}' not found in .obs. Skipping plot.")
 
+# ------------------------------ #
+# 10. Write Updated MuData
+# ------------------------------ #
+# print("Writing updated MuData with latent space...")
+# mdata.write(OUTPUT_UPDATED_MUDATA)
+# print(f"Updated MuData written to: {OUTPUT_UPDATED_MUDATA}")
 
-# %% [markdown]
-# Getting the latent representation and adding it as an obsm field called "X_multivi"
-print("Script execution finished.")
-
+# ------------------------------ #
+# 11. Done
+# ------------------------------ #
+print("Pipeline complete.")
+wandb.finish()
 
