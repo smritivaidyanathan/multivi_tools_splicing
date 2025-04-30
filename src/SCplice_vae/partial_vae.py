@@ -52,9 +52,11 @@ class PartialEncoder(nn.Module):
         # Output dim: K (code_dim)
         self.h_layer = nn.Sequential(
             nn.Linear(1 + code_dim, h_hidden_dim),
+            nn.LayerNorm(h_hidden_dim),           
             nn.ReLU(),
             nn.Dropout(dropout_rate), 
             nn.Linear(h_hidden_dim, code_dim),
+            nn.LayerNorm(code_dim),   
             nn.ReLU()
         )
 
@@ -63,6 +65,7 @@ class PartialEncoder(nn.Module):
         # Output dim: 2 * Z (for mu and logvar)
         self.encoder_mlp = nn.Sequential(
             nn.Linear(code_dim, encoder_hidden_dim),
+            nn.LayerNorm(encoder_hidden_dim),
             nn.ReLU(),
             nn.Dropout(dropout_rate), 
             nn.Linear(encoder_hidden_dim, 2 * latent_dim) # outputs both mu and logvar
@@ -94,7 +97,6 @@ class PartialEncoder(nn.Module):
              raise ValueError(f"Input tensor shape ({x.shape}) and mask shape ({mask.shape}) must match.")
         if x.ndim != 2 or mask.ndim != 2:
              raise ValueError(f"Input tensor and mask must be 2D (batch_size, input_dim). Got shapes {x.shape} and {mask.shape}")
-
 
         # Step 1: Reshape inputs for processing each feature independently
         # Flatten batch and feature dimensions: (B, D) -> (B*D, 1)
@@ -307,6 +309,7 @@ class PartialVAE(nn.Module):
         n_val = len(val_dataloader.dataset)
         k_val = len(val_dataloader)
 
+        print("Start training!")
         for epoch in range(num_epochs):
             epochs_trained += 1
             epoch_train_loss = 0.0
@@ -412,7 +415,7 @@ class PartialVAE(nn.Module):
 
             # --- Early Stopping Check ---
             if avg_val_loss < best_val_loss:
-                print(f"          | Val loss improved ({best_val_loss:.4f} -> {avg_val_loss:.4f}")
+                print(f"          | Val loss improved ({best_val_loss:.4f} -> {avg_val_loss:.4f})")
                 best_val_loss = avg_val_loss
                 bad_epochs = 0 
             else:
@@ -481,7 +484,7 @@ def binomial_loss_function(
       n_cluster_counts: Cluster counts from data.
       n: Number of samples in dataset.
       k: Number of batches in dataloader.
-      concentration: Concentration parameter.
+      concentration: Concentration parameter. [not used here]
       mask: Optional mask to exclude missing values.
       
     Returns:
@@ -489,6 +492,7 @@ def binomial_loss_function(
     """
 
     logits = logits[mask]
+
     junction_counts = junction_counts[mask]
     n_cluster_counts = n_cluster_counts[mask]
 
@@ -499,13 +503,13 @@ def binomial_loss_function(
         junction_counts * log_prob
         + (n_cluster_counts - junction_counts) * log_one_minus_prob
     )
-    log_likelihood = log_likelihood * (float(n) / float(k))
+    
+    #log_likelihood = log_likelihood * (float(n) / float(k))
     reconstruction_loss = -log_likelihood.mean()
 
     # --- KL Divergence Calculation ---
     # Clamp log_vars to a reasonable range to prevent exp() from overflowing
-    # Values below -10 result in exp() close to 0, values above ~20 can risk overflow/instability
-    log_vars_clipped = torch.clamp(log_vars, min=-10, max=20)
+    log_vars_clipped = torch.clamp(log_vars, min=-10, max=10)
 
     # Calculate standard deviation safely using the clipped log_vars
     std_dev = torch.sqrt(torch.exp(log_vars_clipped))
@@ -594,7 +598,7 @@ def beta_binomial_loss_function(
         alpha=alpha,
         beta=beta
     )
-    log_likelihood = log_likelihood * (float(n) / float(k))
+    # log_likelihood = log_likelihood * (float(n) / float(k))
     reconstruction_loss = -log_likelihood.mean()
 
     # --- KL Divergence Calculation ---
