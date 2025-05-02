@@ -177,8 +177,11 @@ def evaluate_imputation(
     # extract the imputed vals at exactly those coords
     imp_vals = imputed[coords[:, 0], coords[:, 1]]
 
+    string_modality = ""
+
     # detect splice vs GE by shape of orig_vals
     if orig_vals.ndim == 2 and orig_vals.shape[1] == 3:
+        string_modality = "Splicing"
         # splice case
         true_ratio       = orig_vals[:, 2]
         # we ignore orig_vals[:,2] (the original ratio) here
@@ -187,6 +190,7 @@ def evaluate_imputation(
         x1, x2 = true_ratio, imp_vals
     else:
         # GE case: orig_vals is a 1D array of counts
+        string_modality = "Gene Expression"
         true_counts = orig_vals
         diff = imp_vals - true_counts
         x1, x2 = true_counts, imp_vals
@@ -196,6 +200,12 @@ def evaluate_imputation(
     rho, _  = spearmanr(x1, x2)
 
     #add scatter plot
+    plt.figure()
+    plt.scatter(x1, x2)
+    plt.xlabel("True Value")
+    plt.ylabel("Imputed Values")
+    plt.title(f"Imputed vs True Values for {string_modality}")
+    plt.show()
 
     return {'mse': mse, 'median_l1': med_l1, 'spearman': rho}
 
@@ -272,9 +282,9 @@ print("Evaluating Imputation")
 # get normalized expression (cells × genes array)
 expr_norm = model.get_normalized_expression(return_numpy=True)
 # get library sizes
-lib = model.get_library_size_factors()['expression']  # NumPy array length n_obs
+#lib = model.get_library_size_factors()['expression']  # NumPy array length n_obs
 # reconstruct counts
-imp_expr_counts = expr_norm * lib[:, None]
+imp_expr_counts = expr_norm #* lib[:, None]
 
 imp_spl = model.get_normalized_splicing(return_numpy=True, junction_list=None) #should be the raw ratios, ie, "p" from generative outputs
 
