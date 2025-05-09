@@ -1,8 +1,9 @@
-# %% [markdown]
-# # SpliceVI Test with W&B Logging
-
-# %% 1. Environment & Imports
+# splicevi_pipeline.py
+#!/usr/bin/env python
 import os
+import inspect
+import argparse
+
 import scanpy as sc
 import scvi
 import matplotlib.pyplot as plt
@@ -10,51 +11,104 @@ import numpy as np
 from scipy import sparse
 import wandb
 
-# Replace with your SpliceVI import if custom
-# from my_splicevi_package import SpliceVI
+# ------------------------------
+# 0. Default Paths (CLI-overridable)
+# ------------------------------
+DEFAULT_ANN_DATA = "/gpfs/commons/groups/knowles_lab/Karin/TMS_MODELING/DATA_FILES/SIMULATED/simulated_data_2025-03-27.h5ad"
+DEFAULT_MODEL_DIR = "/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/models"
+DEFAULT_FIG_DIR = "/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/figures"
 
-print("scvi-tools:", scvi.__version__)
+# ------------------------------
+# 1. Grab train() defaults
+# ------------------------------
+train_sig = inspect.signature(scvi.model.SPLICEVI.train)
+train_defaults = {
+    name: param.default
+    for name, param in train_sig.parameters.items()
+    if name != "self" and param.default is not inspect._empty
+}
 
-# Initialize Weights & Biases
-wandb.init(project="multivi-splice", name="SpliceVI_Run", config={
-    "model": "SpliceVI",
-    "adata_path": "/gpfs/commons/groups/knowles_lab/Karin/TMS_MODELING/DATA_FILES/SIMULATED/simulated_data_2025-03-27.h5ad"
+# ------------------------------
+# 2. Grab __init__ defaults
+# ------------------------------
+init_sig = inspect.signature(scvi.model.SPLICEVI.__init__)
+init_defaults = {
+    name: param.default
+    for name, param in init_sig.parameters.items()
+    if name not in ('self', 'adata') and param.default is not inspect._empty
+}
+
+# ------------------------------
+# 3. Build argparse
+# ------------------------------
+parser = argparse.ArgumentParser("SpliceVI-Test")
+# paths
+parser.add_argument("--adata_path", type=str, default=DEFAULT_ANN_DATA,
+                    help=f"AnnData (.h5ad) path (default: {DEFAULT_ANN_DATA})")
+parser.add_argument("--model_dir", type=str, default=DEFAULT_MODEL_DIR,
+                    help=f"Where to save model (default: {DEFAULT_MODEL_DIR})")
+parser.add_argument("--fig_dir", type=str, default=DEFAULT_FIG_DIR,
+                    help=f"Where to save figures (default: {DEFAULT_FIG_DIR})")
+# model init params
+for name, default in init_defaults.items():
+    arg_type = type(default) if default is not None else float
+    parser.add_argument(f"--{name}", type=arg_type, default=None,
+                        help=f"{name} (default: {default!r})")
+# training params
+for name, default in train_defaults.items():
+    arg_type = type(default) if default is not None else float
+    parser.add_argument(f"--{name}", type=arg_type, default=None,
+                        help=f"{name} (default: {default!r})")
+# UMAP color fields
+parser.add_argument(
+    "--umap_colors",
+    nargs='+',
+    default=["cell_type_grouped"],
+    help="List of obs fields to color UMAP by"
+)
+# wandb project/run name
+parser.add_argument("--wandb_project", type=str, default="multivi-splice", help="W&B project name")
+parser.add_argument("--wandb_run_name", type=str, default=None, help="W&B run name (optional)")
+args = parser.parse_args()
+
+# ------------------------------
+# 4. Prepare directories
+# ------------------------------
+os.makedirs(args.model_dir, exist_ok=True)
+os.makedirs(args.fig_dir, exist_ok=True)
+
+# ------------------------------
+# 5. Initialize W&B
+# ------------------------------
+# merge config
+config = {**init_defaults, **train_defaults}
+for key in list(config):
+    val = getattr(args, key)
+    if val is not None:
+        config[key] = val
+config.update({
+    "adata_path": args.adata_path,
+    "model_dir": args.model_dir,
+    "fig_dir": args.fig_dir,
+    "umap_colors": args.umap_colors
 })
 
-# %% 2. Paths & I/O
-ATSE_ANN_DATA = wandb.config.adata_path
-MODEL_DIR     = "/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/models"
-FIG_DIR       = "/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/figures"
-os.makedirs(FIG_DIR, exist_ok=True)
+wandb.init(project=args.wandb_project, name=args.wandb_run_name, config=config)
 
-# %% 3. Load AnnData
-wandb.log({"status": "Loading AnnData..."})
-print("Loading AnnData of ATSEs…")
-adata = sc.read_h5ad(ATSE_ANN_DATA)
-print(adata)
+# ------------------------------
+# 6. Run pipeline
+# ------------------------------
+print("scvi-tools:", scvi.__version__)
+adata = sc.read_h5ad(args.adata_path)
+# preprocess mask
+mask = (adata.layers['cell_by_cluster_matrix'].toarray() > 0).astype(np.uint8)
+adata.layers['mask'] = mask
+# clean junc_ratio
+jr = adata.layers['junc_ratio']
+jr_arr = jr.toarray() if sparse.issparse(jr) else jr
+adata.layers['junc_ratio'] = sparse.csr_matrix(np.nan_to_num(jr_arr, nan=0.0))
 
-# %% 4. Preprocess mask
-print("Creating mask from 'cell_by_cluster_matrix'")
-atse_counts = adata.layers["cell_by_cluster_matrix"]
-atse_arr = atse_counts.toarray() if sparse.issparse(atse_counts) else atse_counts
-mask = (atse_arr > 0).astype(np.uint8)
-adata.layers["mask"] = mask
-print("Added 'mask' layer:", mask.shape)
-wandb.log({"mask_unique_values": np.unique(mask).tolist()})
-
-# %% 5. Clean junction ratio
-print("Cleaning 'junc_ratio' layer...")
-jr = adata.layers["junc_ratio"]
-if sparse.issparse(jr):
-    jr_arr = jr.toarray()
-    jr_clean = np.nan_to_num(jr_arr, nan=0.0)
-    adata.layers["junc_ratio"] = sparse.csr_matrix(jr_clean)
-else:
-    adata.layers["junc_ratio"] = np.nan_to_num(jr, nan=0.0)
-print("Cleaned 'junc_ratio' layer.")
-
-# %% 6. Setup scvi-tools AnnData
-print("Setting up scvi-tools AnnData...")
+# setup
 scvi.model.SPLICEVI.setup_anndata(
     adata,
     junc_ratio_layer="junc_ratio",
@@ -63,37 +117,41 @@ scvi.model.SPLICEVI.setup_anndata(
     psi_mask_layer="mask",
     batch_key="mouse.id",
 )
+# init model
+model_kwargs = {k: v for k, v in init_defaults.items() if getattr(args, k) is not None}
+model = scvi.model.SPLICEVI(adata, **model_kwargs)
+wandb.log({"model_summary": model._model_summary_string})
+# train
+train_kwargs = {k: v for k, v in train_defaults.items() if getattr(args, k) is not None}
+model.train(**train_kwargs)
+model.save(args.model_dir, overwrite=True)
+wandb.log({"model_saved_to": args.model_dir})
 
-# %% 7. Initialize the model
-print("Initializing SpliceVI model...")
-model = scvi.model.SPLICEVI(adata)
-try:
-    wandb.log({"model_summary": model._model_summary_string})
-except Exception as e:
-    print("Could not log model summary:", e)
-
-# %% 8. Train
-print("Training model...")
-model.train()
-model.save(MODEL_DIR, overwrite=True)
-wandb.log({"model_saved_to": MODEL_DIR})
-print("Model saved to", MODEL_DIR)
-
-# %% 9. Latent representation and UMAP
-print("Computing latent representation and UMAP...")
-adata.obsm["X_splicevi"] = model.get_latent_representation()
-sc.pp.neighbors(adata, use_rep="X_splicevi")
+# ------------------------------
+# 7. Latent representation
+# ------------------------------
+adata.obsm['X_splicevi'] = model.get_latent_representation()
+sc.pp.neighbors(adata, use_rep='X_splicevi')
 sc.tl.umap(adata)
 
-fig = sc.pl.umap(
-    adata,
-    color=["cell_type_grouped"],
-    show=False,
-    return_fig=True,
-)
-fig_path = os.path.join(FIG_DIR, "umap_splicevi_batch.png")
-fig.savefig(fig_path, dpi=150)
-wandb.log({"umap_splicevi": wandb.Image(fig)})
-print("UMAP saved and logged.")
+# ------------------------------
+# 8. Plot & log UMAP for each color
+# ------------------------------
+for color in args.umap_colors:
+    if color not in adata.obs:
+        print(f"Warning: '{color}' not in adata.obs—skipping.")
+        continue
+    adata.obs[color] = adata.obs[color].astype('category')
+    fig = sc.pl.umap(
+        adata,
+        color=color,
+        show=False,
+        return_fig=True,
+    )
+    out_path = os.path.join(args.fig_dir, f"umap_splicevi_{color}.png")
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    wandb.log({f"umap_splicevi_{color}": wandb.Image(fig)})
+    print(f"Saved & logged UMAP for '{color}' → {out_path}")
 
 wandb.finish()
