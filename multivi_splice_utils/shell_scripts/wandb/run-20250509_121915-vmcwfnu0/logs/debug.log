@@ -1,0 +1,22 @@
+2025-05-09 12:19:15,096 INFO    MainThread:229904 [wandb_setup.py:_flush():67] Current SDK version is 0.19.7
+2025-05-09 12:19:15,096 INFO    MainThread:229904 [wandb_setup.py:_flush():67] Configure stats pid to 229904
+2025-05-09 12:19:15,096 INFO    MainThread:229904 [wandb_setup.py:_flush():67] Loading settings from /gpfs/commons/home/svaidyanathan/.config/wandb/settings
+2025-05-09 12:19:15,096 INFO    MainThread:229904 [wandb_setup.py:_flush():67] Loading settings from /gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/multivi_splice_utils/shell_scripts/wandb/settings
+2025-05-09 12:19:15,096 INFO    MainThread:229904 [wandb_setup.py:_flush():67] Loading settings from environment variables
+2025-05-09 12:19:15,096 INFO    MainThread:229904 [wandb_init.py:setup_run_log_directory():647] Logging user logs to /gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/multivi_splice_utils/shell_scripts/wandb/run-20250509_121915-vmcwfnu0/logs/debug.log
+2025-05-09 12:19:15,096 INFO    MainThread:229904 [wandb_init.py:setup_run_log_directory():648] Logging internal logs to /gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/multivi_splice_utils/shell_scripts/wandb/run-20250509_121915-vmcwfnu0/logs/debug-internal.log
+2025-05-09 12:19:15,096 INFO    MainThread:229904 [wandb_init.py:init():761] calling init triggers
+2025-05-09 12:19:15,096 INFO    MainThread:229904 [wandb_init.py:init():766] wandb.init called with sweep_config: {}
+config: {'mudata_path': '/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/mouse_foundation_data_20250502_155802_ge_splice_combined.h5mu', 'model_save_dir': '/gpfs/commons/home/svaidyanathan/multi_vi_splice_runs/MultiVISpliceTraining_20250509_121803_job4443556/models', 'figure_output_dir': '/gpfs/commons/home/svaidyanathan/multi_vi_splice_runs/MultiVISpliceTraining_20250509_121803_job4443556/figures', 'max_epochs': 500, 'lr': 0.0001, 'accelerator': 'auto', 'devices': 'auto', 'train_size': None, 'validation_size': None, 'shuffle_set_split': True, 'batch_size': 128, 'weight_decay': 0.001, 'eps': 1e-08, 'early_stopping': True, 'save_best': True, 'check_val_every_n_epoch': None, 'n_steps_kl_warmup': None, 'n_epochs_kl_warmup': 50, 'adversarial_mixing': True, 'datasplitter_kwargs': None, 'plan_kwargs': None, 'n_latent': 30, 'umap_cell_label': ['broad_cell_type'], '_wandb': {}}
+2025-05-09 12:19:15,096 INFO    MainThread:229904 [wandb_init.py:init():784] starting backend
+2025-05-09 12:19:15,096 INFO    MainThread:229904 [wandb_init.py:init():788] sending inform_init request
+2025-05-09 12:19:15,131 INFO    MainThread:229904 [backend.py:_multiprocessing_setup():97] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2025-05-09 12:19:15,131 INFO    MainThread:229904 [wandb_init.py:init():803] backend started and connected
+2025-05-09 12:19:15,133 INFO    MainThread:229904 [wandb_init.py:init():896] updated telemetry
+2025-05-09 12:19:15,142 INFO    MainThread:229904 [wandb_init.py:init():920] communicating run to backend with 90.0 second timeout
+2025-05-09 12:19:15,584 INFO    MainThread:229904 [wandb_init.py:init():995] starting run threads in backend
+2025-05-09 12:19:18,201 INFO    MainThread:229904 [wandb_run.py:_console_start():2377] atexit reg
+2025-05-09 12:19:18,202 INFO    MainThread:229904 [wandb_run.py:_redirect():2227] redirect: wrap_raw
+2025-05-09 12:19:18,204 INFO    MainThread:229904 [wandb_run.py:_redirect():2292] Wrapping output streams.
+2025-05-09 12:19:18,204 INFO    MainThread:229904 [wandb_run.py:_redirect():2317] Redirects installed.
+2025-05-09 12:19:18,207 INFO    MainThread:229904 [wandb_init.py:init():1037] run started, returning control to user process
