@@ -2,6 +2,7 @@
 #SBATCH --job-name=MultiVI-Splice-Training
 #SBATCH --mem=100G
 #SBATCH --partition=gpu
+#SBATCH --time=24:00:00
 #SBATCH --gres=gpu:1
 
 ### ─── USER EDITABLE CONFIG ────────────────────────────────────────────── ###

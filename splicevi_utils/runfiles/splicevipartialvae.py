@@ -124,7 +124,6 @@ scvi.model.SPLICEVI.setup_anndata(
     junc_counts_layer="cell_by_junction_matrix",
     cluster_counts_layer="cell_by_cluster_matrix",
     psi_mask_layer="mask",
-    batch_key="mouse.id",
 )
 
 # model init kwargs
