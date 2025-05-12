@@ -126,10 +126,12 @@ scvi.model.SPLICEVI.setup_anndata(
     psi_mask_layer="mask",
     batch_key="mouse.id",
 )
+
 # model init kwargs
 model_kwargs = {name: getattr(args, name) for name in init_defaults if getattr(args, name) is not None}
 print("Initializing model with:", model_kwargs)
 model = scvi.model.SPLICEVI(ad, **model_kwargs)
+model.view_anndata_setup()
 
 # ------------------------------
 # 8. Train

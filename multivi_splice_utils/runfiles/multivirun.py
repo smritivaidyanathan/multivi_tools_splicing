@@ -139,7 +139,7 @@ print(f"Reading MuData from {MUDATA_PATH}…")
 mdata = mu.read_h5mu(MUDATA_PATH)
 scvi.model.MULTIVISPLICE.setup_mudata(
     mdata,
-    batch_key="mouse.id",
+    batch_key="dataset",
     size_factor_key="X_library_size",
     rna_layer="raw_counts",
     junc_ratio_layer="junc_ratio",
@@ -147,6 +147,7 @@ scvi.model.MULTIVISPLICE.setup_mudata(
     junc_counts_layer="cell_by_junction_matrix",
     modalities={"rna_layer": "rna", "junc_ratio_layer": "splicing"},
 )
+
 print("Initializing model with:", model_kwargs)
 model = scvi.model.MULTIVISPLICE(
     mdata,
@@ -154,6 +155,7 @@ model = scvi.model.MULTIVISPLICE(
     n_junctions=(mdata["splicing"].var["modality"] == "Splicing").sum(),
     **model_kwargs,
 )
+model.view_anndata_setup()
 
 # ------------------------------
 # 7. Train

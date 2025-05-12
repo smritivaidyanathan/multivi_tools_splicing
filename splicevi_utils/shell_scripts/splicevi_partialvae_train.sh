@@ -111,8 +111,12 @@ args=(
 [ -n "$DATASPLITTER_KWARGS" ] && args+=( --datasplitter_kwargs "$DATASPLITTER_KWARGS" )
 [ -n "$PLAN_KWARGS" ]         && args+=( --plan_kwargs "$PLAN_KWARGS" )
 
-# UMAP colors
-[ -n "$UMAP_COLORS" ]         && args+=( --umap_colors "$UMAP_COLORS" )
+# UMAP labels
+if [ -n "$UMAP_CELL_LABELS" ]; then
+  # split on spaces and pass each as its own arg
+  read -r -a labels <<< "$UMAP_CELL_LABELS"
+  args+=( --umap_cell_label "${labels[@]}" )
+fi
 
 # Launch the pipeline
 python /gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/splicevi_utils/runfiles/splicevipartialvae.py "${args[@]}"
