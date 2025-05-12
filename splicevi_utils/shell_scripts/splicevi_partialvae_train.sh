@@ -6,49 +6,52 @@
 
 ### ─── USER EDITABLE CONFIG ────────────────────────────────────────────── ###
 # USAGE:
-# 1. Default run:
-#      sbatch run_splicevi_pipeline.sh
+# 1. Default run (uses all defaults):
+#      sbatch run_splicevi_partialvae.sh
 # 2. Override in-script:
-#      Uncomment and edit variables below.
+#      Uncomment and edit variables under "# Optional hyperparams"
 # 3. Override on-the-fly:
-#      sbatch --export=LR=5e-4,latent_dim=64 splicevi_partialvae_train.sh
+#      sbatch --export=LR=5e-4,latent_dim=20 run_splicevi_partialvae.sh
+#    (exported vars take precedence over in-script defaults)
+# ───────────────────────────────────────────────────────────────────────────
 
 # Required
 ADATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/TMS_MODELING/DATA_FILES/SIMULATED/simulated_data_2025-03-27.h5ad"
 
-# Model init params (uncomment to override)
-# code_dim=512            # --code_dim
-# h_hidden_dim=256        # --h_hidden_dim
-# encoder_hidden_dim=128  # --encoder_hidden_dim
-# latent_dim=30           # --latent_dim
-# decoder_hidden_dim=256  # --decoder_hidden_dim
-# dropout_rate=0.1        # --dropout_rate
-# learn_concentration=false # --learn_concentration
+# Optional hyperparams for MODEL INIT (uncomment to override; defaults in parentheses):
+CODE_DIM=128                # --code_dim (default: 16)
+# H_HIDDEN_DIM=64            # --h_hidden_dim (default: 64)
+ENCODER_HIDDEN_DIM=32       # --encoder_hidden_dim (default: 128)
+#LATENT_DIM=10                # --latent_dim (default: 10)
+# DECODER_HIDDEN_DIM=64      # --decoder_hidden_dim (default: 64)
+DROPOUT_RATE=0.01           # --dropout_rate (default: 0.0)
+# LEARN_CONCENTRATION=true   # --learn_concentration (default: true)
+SPLICE_LIKELIHOOD="binomial" # --splice_likelihood (default: "beta_binomial")
 
-# Training params (uncomment to override)
-# max_epochs=500                # --max_epochs
-# lr=1e-4                       # --lr
-# accelerator="auto"          # --accelerator
-# devices="auto"              # --devices
-# train_size=""               # --train_size
-# validation_size=""          # --validation_size
-# shuffle_set_split="true"    # --shuffle_set_split
-# batch_size=128                # --batch_size
-# weight_decay=1e-3             # --weight_decay
-# eps=1e-8                      # --eps
-# early_stopping="true"       # --early_stopping
-# save_best="true"            # --save_best
-# check_val_every_n_epoch=""  # --check_val_every_n_epoch
-# n_steps_kl_warmup=""        # --n_steps_kl_warmup
-# n_epochs_kl_warmup=50        # --n_epochs_kl_warmup
-# datasplitter_kwargs=""      # --datasplitter_kwargs
-# plan_kwargs=""              # --plan_kwargs
+# Optional hyperparams for TRAINING (uncomment to override; defaults in parentheses):
+# MAX_EPOCHS=500             # --max_epochs (default: 500)
+LR=1e-3                      # --lr (default: 1e-4)
+# ACCELERATOR="auto"       # --accelerator (default: "auto")
+# DEVICES="auto"           # --devices (default: "auto")
+# TRAIN_SIZE="None"        # --train_size (default: None)
+# VALIDATION_SIZE="None"   # --validation_size (default: None)
+# SHUFFLE_SET_SPLIT="true" # --shuffle_set_split (default: true)
+BATCH_SIZE=128               # --batch_size (default: 128)
+# WEIGHT_DECAY=1e-3          # --weight_decay (default: 1e-3)
+# EPS=1e-08                  # --eps (default: 1e-8)
+# EARLY_STOPPING="true"    # --early_stopping (default: true)
+# SAVE_BEST="true"         # --save_best (default: true)
+# CHECK_VAL_EVERY_N_EPOCH="None" # --check_val_every_n_epoch (default: None)
+# N_STEPS_KL_WARMUP="None" # --n_steps_kl_warmup (default: None)
+# N_EPOCHS_KL_WARMUP=50      # --n_epochs_kl_warmup (default: 50)
+# DATASPLITTER_KWARGS="None" # --datasplitter_kwargs (default: None)
+# PLAN_KWARGS="None"       # --plan_kwargs (default: None)
 
-# UMAP colors (uncomment to override)
+# UMAP colors (uncomment to override; default: cell_type_grouped)
 # UMAP_COLORS="cell_type_grouped sex mouse.id"
 ### ────────────────────────────────────────────────────────────────────── ###
 
-# build unique run folder
+# Build unique run folder
 BASE_NAME="SpliceVI_PartialVAE_Training"
 RUN_ROOT="/gpfs/commons/home/svaidyanathan/splice_vi_partial_vae_runs"
 TS=$(date +"%Y%m%d_%H%M%S")
@@ -56,7 +59,7 @@ RUN_ID="${TS}_job${SLURM_JOB_ID:-manual}"
 RUN_DIR="${RUN_ROOT}/${BASE_NAME}_${RUN_ID}"
 mkdir -p "${RUN_DIR}/models" "${RUN_DIR}/figures"
 
-# redirect stdout/stderr
+# Redirect stdout/stderr
 if [ -n "$SLURM_JOB_ID" ]; then
   exec > "${RUN_DIR}/slurm_${SLURM_JOB_ID}.out" 2> "${RUN_DIR}/slurm_${SLURM_JOB_ID}.err"
 else
@@ -67,48 +70,49 @@ echo "→ Run dir: $RUN_DIR"
 echo "   models  → ${RUN_DIR}/models"
 echo "   figures → ${RUN_DIR}/figures"
 
-# activate conda env
+# Initialize Conda
 CONDA_BASE="/gpfs/commons/home/svaidyanathan/miniconda3"
 source "${CONDA_BASE}/etc/profile.d/conda.sh"
 conda activate scvi-env
 
-# build args array
+# Build args array
 args=(
-  --adata_path       "$ADATA_PATH"
-  --model_dir        "${RUN_DIR}/models"
-  --fig_dir          "${RUN_DIR}/figures"
+  --adata_path   "$ADATA_PATH"
+  --model_dir    "${RUN_DIR}/models"
+  --fig_dir      "${RUN_DIR}/figures"
 )
 
-# model init flags
-[ -n "$code_dim" ]         && args+=( --code_dim         "$code_dim" )
-[ -n "$h_hidden_dim" ]     && args+=( --h_hidden_dim     "$h_hidden_dim" )
-[ -n "$encoder_hidden_dim" ] && args+=( --encoder_hidden_dim "$encoder_hidden_dim" )
-[ -n "$latent_dim" ]       && args+=( --latent_dim       "$latent_dim" )
-[ -n "$decoder_hidden_dim" ] && args+=( --decoder_hidden_dim "$decoder_hidden_dim" )
-[ -n "$dropout_rate" ]     && args+=( --dropout_rate     "$dropout_rate" )
-[ -n "$learn_concentration" ] && args+=( --learn_concentration "$learn_concentration" )
+# MODEL INIT flags
+[ -n "$CODE_DIM" ]            && args+=( --code_dim "$CODE_DIM" )
+[ -n "$H_HIDDEN_DIM" ]        && args+=( --h_hidden_dim "$H_HIDDEN_DIM" )
+[ -n "$ENCODER_HIDDEN_DIM" ]  && args+=( --encoder_hidden_dim "$ENCODER_HIDDEN_DIM" )
+[ -n "$LATENT_DIM" ]          && args+=( --latent_dim "$LATENT_DIM" )
+[ -n "$DECODER_HIDDEN_DIM" ]  && args+=( --decoder_hidden_dim "$DECODER_HIDDEN_DIM" )
+[ -n "$DROPOUT_RATE" ]        && args+=( --dropout_rate "$DROPOUT_RATE" )
+[ -n "$LEARN_CONCENTRATION" ] && args+=( --learn_concentration "$LEARN_CONCENTRATION" )
+[ -n "$SPLICE_LIKELIHOOD" ]    && args+=( --splice_likelihood "$SPLICE_LIKELIHOOD" )
 
-# training flags
-[ -n "$max_epochs" ]            && args+=( --max_epochs            "$max_epochs" )
-[ -n "$lr" ]                    && args+=( --lr                    "$lr" )
-[ -n "$accelerator" ]           && args+=( --accelerator           "$accelerator" )
-[ -n "$devices" ]               && args+=( --devices               "$devices" )
-[ -n "$train_size" ]            && args+=( --train_size            "$train_size" )
-[ -n "$validation_size" ]       && args+=( --validation_size       "$validation_size" )
-[ -n "$shuffle_set_split" ]     && args+=( --shuffle_set_split     "$shuffle_set_split" )
-[ -n "$batch_size" ]            && args+=( --batch_size            "$batch_size" )
-[ -n "$weight_decay" ]          && args+=( --weight_decay          "$weight_decay" )
-[ -n "$eps" ]                   && args+=( --eps                   "$eps" )
-[ -n "$early_stopping" ]        && args+=( --early_stopping        "$early_stopping" )
-[ -n "$save_best" ]             && args+=( --save_best             "$save_best" )
-[ -n "$check_val_every_n_epoch" ] && args+=( --check_val_every_n_epoch "$check_val_every_n_epoch" )
-[ -n "$n_steps_kl_warmup" ]     && args+=( --n_steps_kl_warmup     "$n_steps_kl_warmup" )
-[ -n "$n_epochs_kl_warmup" ]    && args+=( --n_epochs_kl_warmup    "$n_epochs_kl_warmup" )
-[ -n "$datasplitter_kwargs" ]   && args+=( --datasplitter_kwargs   "$datasplitter_kwargs" )
-[ -n "$plan_kwargs" ]           && args+=( --plan_kwargs           "$plan_kwargs" )
+# TRAINING flags
+[ -n "$MAX_EPOCHS" ]          && args+=( --max_epochs "$MAX_EPOCHS" )
+[ -n "$LR" ]                  && args+=( --lr "$LR" )
+[ -n "$ACCELERATOR" ]         && args+=( --accelerator "$ACCELERATOR" )
+[ -n "$DEVICES" ]             && args+=( --devices "$DEVICES" )
+[ -n "$TRAIN_SIZE" ]          && args+=( --train_size "$TRAIN_SIZE" )
+[ -n "$VALIDATION_SIZE" ]     && args+=( --validation_size "$VALIDATION_SIZE" )
+[ -n "$SHUFFLE_SET_SPLIT" ]   && args+=( --shuffle_set_split "$SHUFFLE_SET_SPLIT" )
+[ -n "$BATCH_SIZE" ]          && args+=( --batch_size "$BATCH_SIZE" )
+[ -n "$WEIGHT_DECAY" ]        && args+=( --weight_decay "$WEIGHT_DECAY" )
+[ -n "$EPS" ]                 && args+=( --eps "$EPS" )
+[ -n "$EARLY_STOPPING" ]      && args+=( --early_stopping "$EARLY_STOPPING" )
+[ -n "$SAVE_BEST" ]           && args+=( --save_best "$SAVE_BEST" )
+[ -n "$CHECK_VAL_EVERY_N_EPOCH" ] && args+=( --check_val_every_n_epoch "$CHECK_VAL_EVERY_N_EPOCH" )
+[ -n "$N_STEPS_KL_WARMUP" ]   && args+=( --n_steps_kl_warmup "$N_STEPS_KL_WARMUP" )
+[ -n "$N_EPOCHS_KL_WARMUP" ]  && args+=( --n_epochs_kl_warmup "$N_EPOCHS_KL_WARMUP" )
+[ -n "$DATASPLITTER_KWARGS" ] && args+=( --datasplitter_kwargs "$DATASPLITTER_KWARGS" )
+[ -n "$PLAN_KWARGS" ]         && args+=( --plan_kwargs "$PLAN_KWARGS" )
 
 # UMAP colors
-[ -n "$UMAP_COLORS" ] && args+=( --umap_colors "$UMAP_COLORS" )
+[ -n "$UMAP_COLORS" ]         && args+=( --umap_colors "$UMAP_COLORS" )
 
-# run pipeline
-python splicevi_pipeline.py "${args[@]}"
+# Launch the pipeline
+python /gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/splicevi_utils/runfiles/splicevipartialvae.py "${args[@]}"

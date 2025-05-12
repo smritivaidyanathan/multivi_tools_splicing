@@ -20,3 +20,11 @@ config: {'mudata_path': '/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis
 2025-05-09 12:19:18,204 INFO    MainThread:229904 [wandb_run.py:_redirect():2292] Wrapping output streams.
 2025-05-09 12:19:18,204 INFO    MainThread:229904 [wandb_run.py:_redirect():2317] Redirects installed.
 2025-05-09 12:19:18,207 INFO    MainThread:229904 [wandb_init.py:init():1037] run started, returning control to user process
+2025-05-09 16:13:16,255 INFO    MainThread:229904 [wandb_run.py:_finish():2112] finishing run sv2785-columbia-university/multivi-splice/vmcwfnu0
+2025-05-09 16:13:16,255 INFO    MainThread:229904 [wandb_run.py:_atexit_cleanup():2342] got exitcode: 0
+2025-05-09 16:13:16,256 INFO    MainThread:229904 [wandb_run.py:_restore():2324] restore
+2025-05-09 16:13:16,256 INFO    MainThread:229904 [wandb_run.py:_restore():2330] restore done
+2025-05-09 16:13:17,810 INFO    MsgRouterThr:229904 [mailbox.py:close():115] Closing mailbox, abandoning 1 handles.
+2025-05-09 16:13:17,811 INFO    MainThread:229904 [wandb_run.py:_footer_history_summary_info():3958] rendering history
+2025-05-09 16:13:17,811 INFO    MainThread:229904 [wandb_run.py:_footer_history_summary_info():3990] rendering summary
+2025-05-09 16:13:17,811 INFO    MainThread:229904 [wandb_run.py:_footer_sync_info():3919] logging synced files
