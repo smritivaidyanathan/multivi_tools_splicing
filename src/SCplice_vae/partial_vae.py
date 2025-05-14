@@ -17,6 +17,23 @@ import matplotlib.pyplot as plt
 # Model Components
 # ------------------------------
 
+def apply_kl_warmup(loss_function, kl_weight):
+    """
+    Wraps a loss function to apply KL warm-up weighting.
+    
+    Parameters:
+      loss_function: A loss function that returns (total_loss, recon_loss, kl_loss)
+      kl_weight: Scalar weight for the KL term (between 0 and 1)
+
+    Returns:
+      A modified loss function that applies KL warm-up
+    """
+    def wrapped_loss_function(*args, **kwargs):
+        total_loss, recon_loss, kl_loss = loss_function(*args, **kwargs)
+        weighted_loss = recon_loss + kl_weight * kl_loss
+        return weighted_loss, recon_loss, kl_loss
+    return wrapped_loss_function
+
 class PartialEncoder(nn.Module):
     def __init__(self, input_dim: int, h_hidden_dim: int, encoder_hidden_dim: int, 
                  latent_dim: int, code_dim: int, dropout_rate: float = 0.0):
@@ -45,7 +62,6 @@ class PartialEncoder(nn.Module):
         # Learnable feature embedding (F_d in paper notation) with Xavier/Glorot initialization
         # Shape: (D, K)
         self.feature_embedding = nn.Parameter(torch.randn(input_dim, code_dim))
-        nn.init.xavier_uniform_(self.feature_embedding)
 
         # Shared function h(.) applied to each feature representation s_d = [x_d, F_d]
         # Input dim: 1 (feature value) + K (embedding) = K + 1
@@ -79,7 +95,8 @@ class PartialEncoder(nn.Module):
             x (torch.Tensor): Input data (batch_size, input_dim). Missing values can be anything (e.g., 0, NaN),
                               as they will be masked out based on the 'mask' tensor.
                               It's crucial that the *observed* values in x are the actual measurements.
-            mask (torch.Tensor): Binary mask (batch_size, input_dim). 1 indicates observed, 0 indicates missing.
+            mask (torch.Tensor): Binary mask (batch_size, input_dim). 
+                               1 indicates observed, 0 indicates missing.
                                Must be float or long/int and compatible with multiplication.
 
         Returns:
@@ -90,16 +107,9 @@ class PartialEncoder(nn.Module):
         batch_size = x.size(0)
 
         # --- Input Validation ---
-        if x.shape[1] != self.input_dim or mask.shape[1] != self.input_dim:
-             raise ValueError(f"Input tensor feature dimension ({x.shape[1]}) or mask dimension ({mask.shape[1]}) "
-                              f"does not match encoder input_dim ({self.input_dim})")
-        if x.shape != mask.shape:
-             raise ValueError(f"Input tensor shape ({x.shape}) and mask shape ({mask.shape}) must match.")
-        if x.ndim != 2 or mask.ndim != 2:
-             raise ValueError(f"Input tensor and mask must be 2D (batch_size, input_dim). Got shapes {x.shape} and {mask.shape}")
-
         # Step 1: Reshape inputs for processing each feature independently
         # Flatten batch and feature dimensions: (B, D) -> (B*D, 1)
+        # B, D = batch (num cells by number of junctions)
         x_flat = x.reshape(-1, 1)                                # Shape: (B*D, 1)
 
         # Step 2: Prepare feature embeddings and biases for each item in the flattened batch
@@ -133,7 +143,6 @@ class PartialEncoder(nn.Module):
 
         # Step 9: Split the output into mean (mu) and log variance (logvar)
         mu, logvar = enc_out.chunk(2, dim=-1)                   # Shapes: (B, Z), (B, Z)
-
         return mu, logvar
 
 class LinearDecoder(nn.Module):
@@ -213,6 +222,24 @@ class PartialVAE(nn.Module):
         else:
              self.log_concentration = None 
 
+    
+    def initialize_feature_embedding_from_pca(self, pca_components: np.ndarray):
+
+        """
+        Inject PCA components into feature embedding of PartialEncoder.
+        """
+
+        if not isinstance(pca_components, np.ndarray):
+            raise TypeError("pca_components must be a numpy array.")
+    
+        assert pca_components.shape == (self.input_dim, self.encoder.code_dim), \
+            f"PCA shape {pca_components.shape} does not match model ({self.input_dim}, {self.encoder.code_dim})"
+
+        with torch.no_grad():
+            self.encoder.feature_embedding.copy_(
+                torch.tensor(pca_components, dtype=self.encoder.feature_embedding.dtype)
+            )
+
     def reparameterize(self, mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
         """
         Reparameterization trick: z = mu + std * epsilon
@@ -252,8 +279,10 @@ class PartialVAE(nn.Module):
         return reconstruction, mu, logvar
 
     def train_model(self, loss_function, train_dataloader, val_dataloader, num_epochs,
-                   learning_rate, patience, fixed_concentration=None, 
-                   schedule_step_size=50, schedule_gamma=0.1,
+                   learning_rate, patience, 
+                   fixed_concentration=None, 
+                   schedule_step_size=50, 
+                   schedule_gamma=0.1,
                    output_dir=None, 
                    input_key='x', # Key for input data in batch dict
                    mask_key='mask', # Key for mask in batch dict
@@ -298,7 +327,8 @@ class PartialVAE(nn.Module):
         optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=schedule_step_size, gamma=schedule_gamma)
 
-        train_losses, val_losses = [], []
+        train_losses, train_recons, train_kls, val_losses, val_recons, val_kls = [], [], [], [], [], []
+
         best_val_loss = float('inf')
         bad_epochs = 0
         epochs_trained = 0
@@ -313,6 +343,10 @@ class PartialVAE(nn.Module):
         for epoch in range(num_epochs):
             epochs_trained += 1
             epoch_train_loss = 0.0
+            epoch_train_recon = 0.0
+            epoch_train_kl = 0.0
+            warmup_epochs = 10  # Can tune this
+
             self.train() # Set model to training mode
 
             # --- Training Loop ---
@@ -327,6 +361,8 @@ class PartialVAE(nn.Module):
 
                 # Forward pass - REQUIRES x AND mask
                 reconstruction, mu, logvar = self.forward(x_batch, mask_batch)
+                # if epoch in [0, 1]:
+                #    print(f"[Epoch {epoch+1}] Mean(μ): {mu.mean().item():.4f}, Std(log σ²): {logvar.std().item():.4f}")
 
                 # Determine concentration for loss
                 if fixed_concentration is not None:
@@ -337,8 +373,11 @@ class PartialVAE(nn.Module):
                     # Default if concentration is not applicable (e.g., binomial loss) or not learned
                     concentration_val = torch.tensor(0.0, device=device) # Pass 0 if loss function doesn't use it
 
+                kl_weight = min(1.0, epoch / warmup_epochs)
+                loss_fn_with_kl = apply_kl_warmup(loss_function, kl_weight)
+
                 # Compute loss
-                loss = loss_function(
+                loss, recon_loss, kl = loss_fn_with_kl(
                         logits=reconstruction,
                         junction_counts=j_counts_batch,
                         mean=mu,
@@ -352,14 +391,23 @@ class PartialVAE(nn.Module):
 
                 # Backward pass and optimization
                 loss.backward()
+
                 # Gradient clipping
                 torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
                 optimizer.step()
                 epoch_train_loss += loss.item()
+                epoch_train_recon += recon_loss
+                epoch_train_kl += kl
 
             # --- End of Training Epoch ---
             avg_train_loss = epoch_train_loss / k_train # Use k_train (num batches) for average per-batch loss
+            avg_train_recon = epoch_train_recon / k_train
+            avg_train_kl = epoch_train_kl / k_train
+
             train_losses.append(avg_train_loss)
+            train_recons.append(avg_train_recon)
+            train_kls.append(avg_train_kl)
+
             scheduler.step() # Step the LR scheduler
 
             # Logging training stats
@@ -375,6 +423,8 @@ class PartialVAE(nn.Module):
             # --- Validation Loop ---
             self.eval() # Set model to evaluation mode
             epoch_val_loss = 0.0
+            epoch_val_recon = 0.0
+            epoch_val_kl = 0.0
             with torch.no_grad():
                 for batch in val_dataloader:
                     # Move batch data to device
@@ -395,7 +445,7 @@ class PartialVAE(nn.Module):
                         concentration_val = torch.tensor(0.0, device=device)
 
                     # Compute validation loss
-                    val_batch_loss = loss_function(
+                    val_batch_loss, val_recon, val_kl = loss_function(
                         logits=reconstruction,
                         junction_counts=j_counts_batch,
                         mean=mu,
@@ -407,9 +457,16 @@ class PartialVAE(nn.Module):
                         mask=mask_batch # Pass mask
                     )
                     epoch_val_loss += val_batch_loss.item()
+                    epoch_val_recon += val_recon
+                    epoch_val_kl += val_kl
 
             avg_val_loss = epoch_val_loss / k_val # Average per-batch validation loss, is this right?
+            avg_val_recon = epoch_val_recon / k_val
+            avg_val_kl = epoch_val_kl / k_val
+
             val_losses.append(avg_val_loss)
+            val_recons.append(avg_val_recon)
+            val_kls.append(avg_val_kl)
 
             print(f"          | Val Loss:   {avg_val_loss:.4f}", flush=True)
 
@@ -429,7 +486,7 @@ class PartialVAE(nn.Module):
         # --- End of Training ---
         print(f"\nTraining finished after {epochs_trained} epochs.")
         print(f"Best Validation Loss: {best_val_loss:.4f}")
-        return train_losses, val_losses, epochs_trained
+        return train_losses, train_recons, train_kls, val_losses, val_recons, val_kls, epochs_trained
 
     def get_latent_rep(self, x: torch.Tensor, mask: torch.Tensor) -> np.ndarray:
         """
@@ -509,7 +566,7 @@ def binomial_loss_function(
 
     # --- KL Divergence Calculation ---
     # Clamp log_vars to a reasonable range to prevent exp() from overflowing
-    log_vars_clipped = torch.clamp(log_vars, min=-10, max=10)
+    log_vars_clipped = torch.clamp(log_vars, min=-10, max=20)
 
     # Calculate standard deviation safely using the clipped log_vars
     std_dev = torch.sqrt(torch.exp(log_vars_clipped))
@@ -532,7 +589,7 @@ def binomial_loss_function(
 
     # --- Total Loss ---
     total_loss = reconstruction_loss + kl_div
-    return total_loss
+    return total_loss, reconstruction_loss, kl_div
 
 def beta_binomial_log_pmf(k, n, alpha, beta):
     """
@@ -586,8 +643,8 @@ def beta_binomial_loss_function(
         logits = logits[mask]
         junction_counts = junction_counts[mask]
         n_cluster_counts = n_cluster_counts[mask]
-    # Otherwise, we do not mask, use all entries
 
+    # Otherwise, we do not mask, use all entries
     probabilities = torch.sigmoid(logits).clamp(1e-6, 1 - 1e-6)
     alpha = probabilities * concentration
     beta = (1.0 - probabilities) * concentration
