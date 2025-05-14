@@ -33,14 +33,6 @@ class AnnDataDataset(Dataset):
         self.junction_counts_layer = junction_counts_layer
         self.cluster_counts_layer = cluster_counts_layer
 
-        # --- Validate layer existence ---
-        if self.x_layer not in self.adata.layers:
-            raise KeyError(f"Layer '{self.x_layer}' not found in adata.layers.")
-        if self.junction_counts_layer not in self.adata.layers:
-            raise KeyError(f"Layer '{self.junction_counts_layer}' not found in adata.layers.")
-        if self.cluster_counts_layer not in self.adata.layers:
-            raise KeyError(f"Layer '{self.cluster_counts_layer}' not found in adata.layers.")
-
         # --- Handle subsetting ---
         if obs_indices is None:
             self.indices = np.arange(self.adata.n_obs)
