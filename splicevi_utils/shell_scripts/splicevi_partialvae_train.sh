@@ -16,33 +16,33 @@
 # ───────────────────────────────────────────────────────────────────────────
 
 # Required
-ADATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/TMS_MODELING/DATA_FILES/SIMULATED/simulated_data_2025-03-27.h5ad"
+ADATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/TMS_MODELING/DATA_FILES/SIMULATED/simulated_data_2025-03-12.h5ad"
 
 # Optional hyperparams for MODEL INIT (uncomment to override; defaults in parentheses):
-#CODE_DIM=128                # --code_dim (default: 16)
-# H_HIDDEN_DIM=64            # --h_hidden_dim (default: 64)
-#ENCODER_HIDDEN_DIM=32       # --encoder_hidden_dim (default: 128)
+#CODE_DIM=32                # --code_dim (default: 16)
+#H_HIDDEN_DIM=64            # --h_hidden_dim (default: 64)
+#ENCODER_HIDDEN_DIM=128      # --encoder_hidden_dim (default: 128)
 #LATENT_DIM=10                # --latent_dim (default: 10)
 DROPOUT_RATE=0.01           # --dropout_rate (default: 0.0)
-# LEARN_CONCENTRATION=true   # --learn_concentration (default: true)
+#LEARN_CONCENTRATION=false   # --learn_concentration (default: true)
 SPLICE_LIKELIHOOD="binomial" # --splice_likelihood (default: "beta_binomial")
 
 # Optional hyperparams for TRAINING (uncomment to override; defaults in parentheses):
 MAX_EPOCHS=100         # --max_epochs (default: 500)
-LR=1e-4                      # --lr (default: 1e-4)
+LR=1e-2                  # --lr (default: 1e-4)
 # ACCELERATOR="auto"       # --accelerator (default: "auto")
 # DEVICES="auto"           # --devices (default: "auto")
 # TRAIN_SIZE="None"        # --train_size (default: None)
 # VALIDATION_SIZE="None"   # --validation_size (default: None)
 # SHUFFLE_SET_SPLIT="true" # --shuffle_set_split (default: true)
-BATCH_SIZE=128               # --batch_size (default: 128)
-WEIGHT_DECAY=0         # --weight_decay (default: 1e-3)
+#BATCH_SIZE=512               # --batch_size (default: 128)
+#WEIGHT_DECAY=0.0         # --weight_decay (default: 1e-3)
 # EPS=1e-08                  # --eps (default: 1e-8)
-# EARLY_STOPPING="true"    # --earlbut ty_stopping (default: true)
+#EARLY_STOPPING="true"    # --earlbut ty_stopping (default: true)
 # SAVE_BEST="true"         # --save_best (default: true)
 # CHECK_VAL_EVERY_N_EPOCH="None" # --check_val_every_n_epoch (default: None)
 # N_STEPS_KL_WARMUP="None" # --n_steps_kl_warmup (default: None)
-#N_EPOCHS_KL_WARMUP=0    # --n_epochs_kl_warmup (default: 50)
+#N_EPOCHS_KL_WARMUP=10    # --n_epochs_kl_warmup (default: 50)
 # REDUCE_LR_ON_PLATEAU=""   # if set to any non-empty value, will turn on LR scheduling
 # LR_FACTOR=0.6             # --lr_factor (default: 0.6)
 # LR_PATIENCE=30            # --lr_patience (default: 30)
