@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=MultiVI-Splice-Training
-#SBATCH --mem=100G
+#SBATCH --mem=300G
 #SBATCH --partition=gpu
 #SBATCH --time=24:00:00
 #SBATCH --gres=gpu:1
@@ -18,7 +18,7 @@
 # ───────────────────────────────────────────────────────────────────────────
 
 # Required
-MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/mouse_foundation_data_20250502_155802_ge_splice_combined.h5mu"
+MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/aligned__ge_splice_combined_20250513_035938.h5mu"
 
 # Optional hyperparams for MODEL INIT (uncomment to override; defaults in parentheses):
 # N_GENES="None"                 # --n_genes (default: None, inferred from data)
@@ -30,7 +30,7 @@ LATENT_DIM=30                     # --n_latent (default: None = √n_hidden)
 # N_LAYERS_ENCODER=2               # --n_layers_encoder (default: 2)
 # N_LAYERS_DECODER=2               # --n_layers_decoder (default: 2)
 # DROPOUT_RATE=0.1                 # --dropout_rate (default: 0.1)
-# GENE_LIKELIHOOD="zinb"         # --gene_likelihood (default: "zinb")
+# GENE_LIKELIHOOD="zinb"         # --gene_likelihood (default: "zinb") 
 # SPLICING_LOSS_TYPE="beta_binomial" # --splicing_loss_type (default: "beta_binomial")
 # SPLICING_CONCENTRATION="None"   # --splicing_concentration (default: None)
 # DISPERSION="gene"              # --dispersion (default: "gene")
@@ -42,7 +42,7 @@ LATENT_DIM=30                     # --n_latent (default: None = √n_hidden)
 # FULLY_PAIRED="false"           # --fully_paired (default: false)
 
 # Optional hyperparams for TRAINING (uncomment to override; defaults in parentheses):
-# MAX_EPOCHS=1                   # --max_epochs (default: 500)
+MAX_EPOCHS=10                   # --max_epochs (default: 500)
 # LR=1e-4                          # --lr (default: 1e-4)
 # ACCELERATOR="auto"             # --accelerator (default: "auto")
 # DEVICES="auto"                 # --devices (default: "auto")

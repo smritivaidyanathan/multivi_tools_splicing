@@ -11,11 +11,13 @@ import scanpy as sc
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import sparse
+import scipy.sparse as ss
+import numpy as np
 
 # ------------------------------
 # 0. Default Paths (can be overridden via CLI)
 # ------------------------------
-DEFAULT_MUDATA_PATH       = "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/mouse_foundation_data_20250502_155802_ge_splice_combined.h5mu"
+DEFAULT_MUDATA_PATH       = "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/aligned__ge_splice_combined_20250513_035938.h5mu"
 DEFAULT_MODEL_SAVE_DIR    = "/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/models/multivisplice"
 DEFAULT_FIGURE_OUTPUT_DIR = "/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/figures"
 
@@ -135,16 +137,43 @@ wandb_logger = WandbLogger(project="multivi-splice", config=full_config)
 # ------------------------------
 # 6. Load data & set up model
 # ------------------------------
+
+
+
+
 print(f"Reading MuData from {MUDATA_PATH}…")
 mdata = mu.read_h5mu(MUDATA_PATH)
+
+
+from scipy import sparse
+import numpy as np
+
+# grab the csr layer
+splicing = mdata["splicing"]
+cluster = splicing.layers["cell_by_cluster_matrix"]
+
+# ensure it’s CSR
+if not sparse.isspmatrix_csr(cluster):
+    cluster = sparse.csr_matrix(cluster)
+
+mask = cluster.copy()
+mask.data = np.ones_like(mask.data, dtype=np.uint8)
+
+splicing.layers["psi_mask"] = mask
+
+print("Now splicing layers:", splicing.layers.keys())
+print(f"Mask: {mask}")
+
+
 scvi.model.MULTIVISPLICE.setup_mudata(
     mdata,
-    batch_key="dataset",
+    batch_key="mouse.id",
     size_factor_key="X_library_size",
     rna_layer="raw_counts",
     junc_ratio_layer="junc_ratio",
     atse_counts_layer="cell_by_cluster_matrix",
     junc_counts_layer="cell_by_junction_matrix",
+    psi_mask_layer="psi_mask",            # ← here
     modalities={"rna_layer": "rna", "junc_ratio_layer": "splicing"},
 )
 
