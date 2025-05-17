@@ -2,9 +2,9 @@
 """
 imputation_benchmark.py
 
-Benchmark imputation accuracy of multiple models across varying
+Benchmark imputation accuracy under varying
 fractions of missing gene‐expression and splicing data,
-with aggressive memory cleanup.
+with minimal peak memory usage—and verbose logging.
 """
 
 import os
@@ -22,91 +22,122 @@ import matplotlib.pyplot as plt
 # ------------------------------------------------------------------------------
 # Config from environment / defaults
 # ------------------------------------------------------------------------------
-IMPUTATION_EVAL_OUTDIR = os.environ.get("IMPUTATION_EVAL_OUTDIR", "./imputation_eval_output")
+IMPUTATION_EVAL_OUTDIR = os.environ.get(
+    "IMPUTATION_EVAL_OUTDIR", "./imputation_eval_output"
+)
 FIG_DIR = os.path.join(IMPUTATION_EVAL_OUTDIR, "figures")
 os.makedirs(FIG_DIR, exist_ok=True)
 CSV_OUT = os.path.join(IMPUTATION_EVAL_OUTDIR, "imputation_results.csv")
 
+MUDATA_PATH = (
+    "/gpfs/commons/groups/knowles_lab/Karin/"
+    "Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/"
+    "MODEL_INPUT/052025/aligned__ge_splice_combined_20250513_035938.h5mu"
+)
+
 UMAP_GROUP = "cell_type_grouped"
-# list of (pct_rna_missing, pct_splice_missing)
 MISSING_PCT_PAIRS = [(0.0, 0.2), (0.2, 0.0), (0.2, 0.2)]
 SEED = 42
 
 # ------------------------------------------------------------------------------
 # Utilities: corrupt & evaluate
 # ------------------------------------------------------------------------------
-def corrupt_mudata(mdata, pct_rna=0.0, pct_splice=0.0, seed=None):
-    """
-    Only copies & modifies the layers we need, not the full MuData
-    """
+def corrupt_mudata_inplace(mdata, pct_rna, pct_splice, seed):
+    print(f"  → corrupt_mudata_inplace(pct_rna={pct_rna}, pct_splice={pct_splice}) start", flush=True)
     rng = np.random.default_rng(seed)
-    corrupted = mdata.copy()  # unfortunately MuData.copy is deep, so we'll gc after
     orig = {'rna': None, 'splice': None}
 
-    # --- RNA masking on sparse ---
+    # --- RNA masking (in place) ---
     if pct_rna > 0:
-        X = corrupted['rna'].layers['raw_counts']
-        # get nonzero coords
-        rows, cols = X.nonzero()
-        nrm = int(len(rows) * pct_rna)
-        idx = rng.choice(len(rows), nrm, replace=False)
+        print("    * RNA masking...", flush=True)
+        X_csr = mdata['rna'].layers['raw_counts']
+        if not sparse.isspmatrix_csr(X_csr):
+            X_csr = X_csr.tocsr()
+        rows, cols = X_csr.nonzero()
+        nnz = len(rows)
+        nrm = int(nnz * pct_rna)
+        idx = rng.choice(nnz, nrm, replace=False)
         coords = np.stack([rows[idx], cols[idx]], axis=1)
-        # pull values
-        vals = X[coords[:,0], coords[:,1]].A1 if sparse.isspmatrix(X) else X[coords[:,0], coords[:,1]]
-        # zero them
-        X = X.tolil()
-        X[coords[:,0], coords[:,1]] = 0
-        corrupted['rna'].layers['raw_counts'] = X.tocsr()
+        vals = X_csr[coords[:,0], coords[:,1]].A1
+        X_lil = X_csr.tolil()
+        X_lil[coords[:,0], coords[:,1]] = 0
+        mdata['rna'].layers['raw_counts'] = X_lil.tocsr()
         orig['rna'] = (coords, vals)
+        print(f"      masked {nrm} RNA entries", flush=True)
 
-    # --- Splicing masking on sparse ---
+    # --- Splicing masking (in place) ---
     if pct_splice > 0:
-        atse = corrupted['splicing'].layers['cell_by_cluster_matrix'].tocoo()
-        junc = corrupted['splicing'].layers['cell_by_junction_matrix'].tocoo()
-        ratio = corrupted['splicing'].layers['junc_ratio']
-        # build mask of valid entries
-        # atse.row, atse.col, atse.data; pick those with data>0
-        valid_mask = atse.data > 0
-        vr, vc = atse.row[valid_mask], atse.col[valid_mask]
-        # also need to check junc and ratio at same coords
-        # build dict for junc and ratio lookups
-        j_dict = {(r,c): v for r,c,v in zip(junc.row, junc.col, junc.data)}
-        r_arr = ratio.toarray() if sparse.isspmatrix(ratio) else np.array(ratio)
-        valid = [(r,c) for r,c in zip(vr,vc) if j_dict.get((r,c),-1) >= 0 and not np.isnan(r_arr[r,c])]
-        nrm = int(len(valid) * pct_splice)
-        sel = rng.choice(len(valid), nrm, replace=False)
-        coords = np.array([valid[i] for i in sel])
-        orig_vals = np.vstack([
-            atse.data[valid_mask][sel],
-            [j_dict[(r,c)] for r,c in coords],
-            [r_arr[r,c] for r,c in coords],
-        ]).T
-        # zero them
-        atse_lil = atse.tolil(); junc_lil = junc.tolil()
-        for r,c in coords:
-            atse_lil[r,c] = 0
-            junc_lil[r,c] = 0
-            r_arr[r,c] = 0
-        corrupted['splicing'].layers['cell_by_cluster_matrix'] = atse_lil.tocsr()
-        corrupted['splicing'].layers['cell_by_junction_matrix'] = junc_lil.tocsr()
-        corrupted['splicing'].layers['junc_ratio'] = sparse.csr_matrix(r_arr) if sparse.isspmatrix(ratio) else r_arr
+        print("    * Splicing masking...", flush=True)
+        sp_mod = 'splicing'
+        A_csr = mdata[sp_mod].layers['cell_by_cluster_matrix']
+        if not sparse.isspmatrix_csr(A_csr):
+            A_csr = A_csr.tocsr()
+        J_csr = mdata[sp_mod].layers['cell_by_junction_matrix']
+        if not sparse.isspmatrix_csr(J_csr):
+            J_csr = J_csr.tocsr()
+        R_layer = mdata[sp_mod].layers['junc_ratio']
+
+        rows, cols = A_csr.nonzero()
+        data = A_csr.data
+        j_vals = J_csr[rows, cols].A1
+        if sparse.isspmatrix(R_layer):
+            R_csr = R_layer.tocsr()
+            r_vals = R_csr[rows, cols].A1
+        else:
+            r_vals = R_layer[rows, cols]
+
+        good = (data > 0) & (j_vals >= 0) & (~np.isnan(r_vals))
+        rows, cols, data, j_vals, r_vals = (
+            rows[good], cols[good], data[good], j_vals[good], r_vals[good]
+        )
+        nnz_all = len(rows)
+        nrm = int(nnz_all * pct_splice)
+        idx2 = rng.choice(nnz_all, nrm, replace=False)
+        coords = np.stack([rows[idx2], cols[idx2]], axis=1)
+        orig_vals = np.vstack([data[idx2], j_vals[idx2], r_vals[idx2]]).T
+
+        A_lil = A_csr.tolil()
+        J_lil = J_csr.tolil()
+        if sparse.isspmatrix(R_layer):
+            R_lil = R_csr.tolil()
+        for r, c in coords:
+            A_lil[r, c] = 0
+            J_lil[r, c] = 0
+            if sparse.isspmatrix(R_layer):
+                R_lil[r, c] = 0
+            else:
+                R_layer[r, c] = 0
+
+        mdata[sp_mod].layers['cell_by_cluster_matrix'] = A_lil.tocsr()
+        mdata[sp_mod].layers['cell_by_junction_matrix'] = J_lil.tocsr()
+        if sparse.isspmatrix(R_layer):
+            mdata[sp_mod].layers['junc_ratio'] = R_lil.tocsr()
+        else:
+            mdata[sp_mod].layers['junc_ratio'] = R_layer
+
         orig['splice'] = (coords, orig_vals)
+        print(f"      masked {nrm} splicing entries (out of {nnz_all} valid)", flush=True)
 
-    # rebuild psi_mask
-    sp = corrupted['splicing']
-    clu = sp.layers['cell_by_cluster_matrix']
-    mask = (clu > 0).astype(np.uint8) if not sparse.isspmatrix_csr(clu) else clu.copy()
-    if not sparse.isspmatrix_csr(mask):
-        mask = sparse.csr_matrix(mask)
-    sp.layers['psi_mask'] = mask
+    # --- rebuild psi_mask as before ---
+    print("    * rebuilding psi_mask layer", flush=True)
+    clu = mdata['splicing'].layers['cell_by_cluster_matrix']
+    if sparse.isspmatrix_csr(clu):
+        mask = clu.copy()
+        mask.data = np.ones_like(mask.data, dtype=np.uint8)
+    else:
+        arr = (clu > 0).astype(np.uint8)
+        mask = sparse.csr_matrix(arr)
+    mdata['splicing'].layers['psi_mask'] = mask
 
-    return corrupted, orig
+    print("  → corrupt_mudata_inplace done", flush=True)
+    return orig
 
 
 def evaluate_imputation(original, imputed):
+    print("    * evaluate_imputation...", flush=True)
     coords, vals = original
     pred = imputed[coords[:,0], coords[:,1]]
-    if vals.ndim == 2 and vals.shape[1] == 3:
+    if vals.ndim == 2:
         atse, true_j, _ = vals.T
         imp_counts = pred * atse
         diff = imp_counts - true_j
@@ -115,20 +146,21 @@ def evaluate_imputation(original, imputed):
         true_c = vals
         diff = pred - true_c
         x1, x2 = true_c, pred
-    return {
+    res = {
         'mse': float((diff**2).mean()),
         'median_l1': float(abs(diff).median()),
         'spearman': float(spearmanr(x1, x2).correlation),
     }
-
+    print(f"      -> eval results {res}", flush=True)
+    return res
 
 # ------------------------------------------------------------------------------
-# Define your models
+# Model factory
 # ------------------------------------------------------------------------------
 def define_models():
-    def build(mdata_corr, latent_dim):
+    def build(mdata, latent_dim):
         scvi.model.MULTIVISPLICE.setup_mudata(
-            mdata_corr,
+            mdata,
             batch_key="mouse.id",
             size_factor_key="X_library_size",
             rna_layer="raw_counts",
@@ -136,12 +168,12 @@ def define_models():
             atse_counts_layer="cell_by_cluster_matrix",
             junc_counts_layer="cell_by_junction_matrix",
             psi_mask_layer="psi_mask",
-            modalities={"rna_layer": "rna", "junc_ratio_layer": "splicing"},
+            modalities={"rna_layer":"rna", "junc_ratio_layer":"splicing"},
         )
         return scvi.model.MULTIVISPLICE(
-            mdata_corr,
-            n_genes=(mdata_corr['rna'].var['modality']=="Gene_Expression").sum(),
-            n_junctions=(mdata_corr['splicing'].var['modality']=="Splicing").sum(),
+            mdata,
+            n_genes=(mdata['rna'].var['modality']=="Gene_Expression").sum(),
+            n_junctions=(mdata['splicing'].var['modality']=="Splicing").sum(),
             n_latent=latent_dim,
         )
 
@@ -150,72 +182,73 @@ def define_models():
         "z20": lambda md: build(md, 20),
     }
 
-
 # ------------------------------------------------------------------------------
 # Main
 # ------------------------------------------------------------------------------
 def main():
     random.seed(SEED)
     np.random.seed(SEED)
-
-    print("Reading full MuData…")
-    mdata_full = mu.read_h5mu(MUDATA_PATH)
-    models = define_models()
     records = []
 
     for pct_rna, pct_splice in MISSING_PCT_PAIRS:
         label = f"r{pct_rna:.2f}_s{pct_splice:.2f}"
-        print(f"\n--- Missingness {label} ---")
+        print(f"\n--- Missingness {label} ---", flush=True)
 
-        # corrupt copy
-        mdata_corr, orig_vals = corrupt_mudata(mdata_full, pct_rna, pct_splice, SEED)
-        del mdata_full  # free
-        gc.collect()
+        print("  * loading fresh MuData…", flush=True)
+        mdata = mu.read_h5mu(MUDATA_PATH)
+        print("  * loaded MuData", flush=True)
 
+        orig = corrupt_mudata_inplace(mdata, pct_rna, pct_splice, SEED)
+
+        models = define_models()
         for name, setup_fn in models.items():
-            print(f"Training {name} …")
-            md = mdata_corr.copy()  # copy just once per model
-            model = setup_fn(md)
+            print(f"  * Training {name} …", flush=True)
+            model = setup_fn(mdata)
+            print("    - calling model.train()", flush=True)
             model.train(max_epochs=10)
+            print("    - training complete", flush=True)
 
-            # impute & eval
+            print("    - computing imputation…", flush=True)
             expr = model.get_normalized_expression(return_numpy=True)
             lib  = model.get_library_size_factors()['expression']
             imp_expr = expr * lib[:,None]
             imp_spl  = model.get_normalized_splicing(return_numpy=True)
-            m_rna = evaluate_imputation(orig_vals['rna'], imp_expr)
-            m_spl = evaluate_imputation(orig_vals['splice'], imp_spl)
 
-            # record
-            records.append(dict(
-                model=name, pct_rna=pct_rna, pct_splice=pct_splice, label=label,
+            m_rna = evaluate_imputation(orig['rna'], imp_expr)
+            m_spl = evaluate_imputation(orig['splice'], imp_spl)
+
+            records.append({
+                'model': name, 'pct_rna': pct_rna, 'pct_splice': pct_splice,
                 **{f"rna_{k}":v for k,v in m_rna.items()},
                 **{f"spl_{k}":v for k,v in m_spl.items()},
-            ))
+            })
 
-            # UMAP per‐model
+            print("    - generating UMAP plot…", flush=True)
             lat = model.get_latent_representation()
             ad = sc.AnnData(lat)
-            ad.obs = md['rna'].obs.copy()
+            ad.obs = mdata['rna'].obs
             sc.pp.neighbors(ad, use_rep="X")
             sc.tl.umap(ad, min_dist=0.2)
-            fig = sc.pl.umap(ad, color=UMAP_GROUP, show=False, return_fig=True, title=f"{name} {label}")
-            fig.savefig(os.path.join(FIG_DIR, f"{name}_umap_{label}.png"), dpi=300, bbox_inches="tight")
+            fig = sc.pl.umap(ad, color=UMAP_GROUP, show=False,
+                             return_fig=True, title=f"{name} {label}")
+            fig.savefig(os.path.join(
+                FIG_DIR, f"{name}_umap_{label}.png"
+            ), dpi=300, bbox_inches="tight")
             plt.close(fig)
+            print("    - saved UMAP", flush=True)
 
-            # cleanup
-            del lat, ad, fig
-            del model, md
+            del model, lat, ad, fig
             gc.collect()
+            print("    - cleaned up model objects", flush=True)
 
-        # cleanup per‐mask
-        del mdata_corr, orig_vals
+        del mdata, orig
         gc.collect()
+        print("  * cleaned up MuData", flush=True)
 
-    # write out metrics
+    print("Writing CSV…", flush=True)
     df = pd.DataFrame.from_records(records)
     df.to_csv(CSV_OUT, index=False)
-    print("Metrics →", CSV_OUT)
+    print("Wrote metrics to", CSV_OUT, flush=True)
 
 
 if __name__ == "__main__":
