@@ -175,6 +175,7 @@ def define_models():
             n_genes=(mdata['rna'].var['modality']=="Gene_Expression").sum(),
             n_junctions=(mdata['splicing'].var['modality']=="Splicing").sum(),
             n_latent=latent_dim,
+            splicing_architeture = "vanilla"
         )
 
     return {

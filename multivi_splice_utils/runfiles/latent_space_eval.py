@@ -87,42 +87,34 @@ base_colors = sns.color_palette(n_colors=10)
 palette = {cat: col for cat, col in zip(top10, base_colors)}
 palette["Other"] = "lightgrey"
 
-# layout: one plot per model
-import matplotlib.gridspec as gridspec
-fig = plt.figure(constrained_layout=True, figsize=(8, 4))
-gs  = gridspec.GridSpec(1, len(model_paths), figure=fig, width_ratios=[4,1])
-axes = [fig.add_subplot(gs[0, i]) for i in range(len(model_paths))]
+# ---------------------------
+# Figure 1: one UMAP per model
+# ---------------------------
+import matplotlib.pyplot as plt
 
-for ax, (name, lat) in zip(axes, latents.items()):
+print("\nGenerating per-model UMAPs…")
+for name, lat in latents.items():
     ad = sc.AnnData(lat)
     ad.obs["top10_or_other"] = mdata["rna"].obs["top10_or_other"].values
     ad.obsm["X_input"] = lat
 
     sc.pp.neighbors(ad, use_rep="X_input")
     sc.tl.umap(ad, min_dist=0.1)
-
-    show_legend = (ax is axes[0])
+    
+    fig, ax = plt.subplots(figsize=(4,4))
     sc.pl.umap(
         ad,
         color="top10_or_other",
         ax=ax,
         palette=palette,
-        legend_loc="right margin" if show_legend else None,
+        legend_loc="right margin",
         show=False,
     )
-    if not show_legend:
-        leg = ax.get_legend()
-        if leg:
-            leg.remove()
-
-    ax.set_title(name)
-
-fig.suptitle(f"UMAPs colored by top-10 '{UMAP_GROUP}'", y=1.02)
-fig.savefig(
-    os.path.join(FIG_DIR, f"umap_side_by_side_{UMAP_GROUP}.png"),
-    dpi=300,
-    bbox_inches="tight",
-)
+    ax.set_title(f"UMAP — {name}")
+    out = os.path.join(FIG_DIR, f"umap_{name}.png")
+    fig.savefig(out, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  saved {out}")
 
 # right after your UMAP block, before computing silhouettes:
 # ensure you have a categorical version of the original cell‐type labels
@@ -170,15 +162,16 @@ def get_latents(model):
         "splicing":  model.get_latent_representation(modality="splicing"),
     }
 
+from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
+
+records = []
+TARGET_CELL_TYPE = "Excitatory Neurons"
+
 for ct in valid_ct:
     print(f"\n--- Processing cell type: {ct} (n={counts[ct]}) ---")
-    # which obs indices belong to this type
     obs_ct = mdata["rna"].obs[UMAP_GROUP] == ct
     cells = mdata["rna"].obs_names[obs_ct].tolist()
-
-    # random split
-    random.seed(RANDOM_SEED)
-    random.shuffle(cells)
+    random.seed(RANDOM_SEED); random.shuffle(cells)
     half = len(cells) // 2
     idx1 = np.isin(mdata["rna"].obs_names, cells[:half])
     idx2 = np.isin(mdata["rna"].obs_names, cells[half:])
@@ -186,8 +179,11 @@ for ct in valid_ct:
     for name, path in model_paths.items():
         print(f"Model '{name}':")
         model = scvi.model.MULTIVISPLICE.load(path, adata=mdata)
-        Z = get_latents(model)
-
+        Z = {
+            "joint":      model.get_latent_representation(),
+            "expression": model.get_latent_representation(modality="expression"),
+            "splicing":   model.get_latent_representation(modality="splicing"),
+        }
         x1 = {m: Z[m][idx1] for m in Z}
         x2 = {m: Z[m][idx2] for m in Z}
 
@@ -195,58 +191,80 @@ for ct in valid_ct:
             km = KMeans(n_clusters=k, random_state=RANDOM_SEED)
             labels1 = km.fit_predict(x1["joint"])
             labels2 = km.predict(x2["joint"])
+            
+            # for largest cell type, plot confusion
+            if ct == TARGET_CELL_TYPE:
+                cm = confusion_matrix(labels1, labels2)
+                disp = ConfusionMatrixDisplay(cm)
+                fig_cm, ax_cm = plt.subplots(figsize=(6,6))
+                disp.plot(ax=ax_cm, cmap="Blues", colorbar=False)
+                ax_cm.set_title(f"{ct} — {name} — k={k}")
+                cm_out = os.path.join(FIG_DIR, f"confusion_{name}_{ct.replace(' ','_')}_k{k}.png")
+                fig_cm.savefig(cm_out, dpi=300, bbox_inches="tight")
+                plt.close(fig_cm)
+                print(f"    saved confusion matrix → {cm_out}")
+
+            # supervised classifier and all four metrics:
             for mod in ["joint", "expression", "splicing"]:
                 clf = LogisticRegression(max_iter=200, random_state=RANDOM_SEED)
                 clf.fit(x2[mod], labels2)
-                acc = (clf.predict(x1[mod]) == labels1).mean()
-                records.append({
-                    "model":     name,
-                    "cell_type": ct,
-                    "modality":  mod,
-                    "k":         k,
-                    "accuracy":  acc,
-                })
-                print(f"  k={k:2d}, {mod:12s} → acc={acc:.3f}")
+                pred = clf.predict(x1[mod])
+                acc  = (pred == labels1).mean()
+                prec = precision_score(labels1, pred, average="weighted", zero_division=0)
+                rec  = recall_score(labels1, pred, average="weighted", zero_division=0)
+                f1   = f1_score(labels1, pred, average="weighted", zero_division=0)
+                for metric, val in [
+                    ("accuracy", acc),
+                    ("precision", prec),
+                    ("recall", rec),
+                    ("f1", f1),
+                ]:
+                    records.append({
+                        "model":     name,
+                        "cell_type": ct,
+                        "modality":  mod,
+                        "k":         k,
+                        "metric":    metric,
+                        "value":     val,
+                    })
+                print(f"  k={k:2d}, {mod:12s} → acc={acc:.3f}, prec={prec:.3f}, rec={rec:.3f}, f1={f1:.3f}")
 
-# assemble DataFrame and save
+# assemble and save
 df_acc = pd.DataFrame.from_records(records)
-df_acc.to_csv(
-    os.path.join(LATENT_EVAL_OUTDIR, "subcluster_accuracies.csv"),
-    index=False,
-)
-print("Saved subcluster results → subcluster_accuracies.csv")
+df_acc.to_csv(os.path.join(LATENT_EVAL_OUTDIR, "subcluster_metrics.csv"), index=False)
+print("Saved all metrics → subcluster_metrics.csv")
+
 
 # ---- plot mean±SD across cell types for each model ----
-print("\nPlotting accuracy means ± SD across cell types…")
-import matplotlib.gridspec as gridspec
 
-n = len(model_paths)
-fig = plt.figure(constrained_layout=True, figsize=(5*n, 4))
-gs  = gridspec.GridSpec(1, n, figure=fig)
-for i, name in enumerate(model_paths):
-    ax = fig.add_subplot(gs[0, i])
-    sub = df_acc[df_acc.model == name]
-    # compute mean and std across cell types
-    pivot = (
-        sub
-        .pivot_table(index="k", columns="modality", values="accuracy",
-                     aggfunc=["mean", "std"])
-    )
-    means = pivot["mean"][["joint","expression","splicing"]]
-    stds  = pivot["std"][["joint","expression","splicing"]]
-    means.plot.bar(
-        yerr=stds,
-        ax=ax,
-        capsize=4,
-    )
-    ax.set_title(name)
-    ax.set_xlabel("Number of clusters (k)")
-    ax.set_ylabel("Accuracy")
-    ax.tick_params(rotation=0)
-    if i > 0:
-        ax.get_legend().remove()
+print("\nPlotting subcluster metrics…")
+metrics = ["accuracy","precision","recall","f1"]
+for metric in metrics:
+    fig, axes = plt.subplots(1, len(model_paths), figsize=(5*len(model_paths), 4))
+    for ax, name in zip(axes, model_paths):
+        sub = df_acc[(df_acc.model==name) & (df_acc.metric==metric)]
+        pivot = sub.pivot_table(
+            index="k",
+            columns="modality",
+            values="value",
+            aggfunc=["mean","std"],
+        )
+        means = pivot["mean"][["joint","expression","splicing"]]
+        stds  = pivot["std"][["joint","expression","splicing"]]
+        means.plot.bar(
+            yerr=stds,
+            capsize=4,
+            ax=ax,
+        )
+        ax.set_title(f"{name} — {metric}")
+        ax.set_xlabel("k")
+        ax.set_ylabel(metric.title())
+        ax.tick_params(rotation=0)
+        if ax is not axes[0]:
+            ax.get_legend().remove()
+    plt.tight_layout()
+    out = os.path.join(FIG_DIR, f"subcluster_{metric}.png")
+    fig.savefig(out, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  saved {out}")
 
-fig.suptitle("Subcluster reproducibility (mean ± SD over cell types)", y=1.02)
-out3 = os.path.join(FIG_DIR, "subcluster_reproducibility.png")
-fig.savefig(out3, dpi=300, bbox_inches="tight")
-print("Saved plot →", out3)

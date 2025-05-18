@@ -14,6 +14,9 @@ from scipy import sparse
 import scipy.sparse as ss
 import numpy as np
 
+import torch
+torch.autograd.set_detect_anomaly(True)
+
 # ------------------------------
 # 0. Default Paths (can be overridden via CLI)
 # ------------------------------
@@ -192,7 +195,7 @@ print(mdata)
 
 scvi.model.MULTIVISPLICE.setup_mudata(
     mdata,
-    batch_key="dataset",
+    batch_key = "dataset",
     size_factor_key="X_library_size",
     rna_layer="raw_counts",
     junc_ratio_layer="junc_ratio",

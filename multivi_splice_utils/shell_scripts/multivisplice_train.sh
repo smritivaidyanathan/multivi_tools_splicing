@@ -9,11 +9,11 @@
 # ───────────────────────────────────────────────────────────────────────────
 # USAGE:
 # 1. Default run (uses all the defaults from the Python script):
-#      sbatch run_multivi_splice.sh
+#  sbatch multivisplice_train.sh
 # 2. Override in-script parameters:
 #      Uncomment and edit variables under "# Optional hyperparams"
 # 3. Override on-the-fly:
-#      sbatch --export=LATENT_DIM=64,LR=5e-4 run_multivi_splice.sh
+#      sbatch --export=LATENT_DIM=64,LR=5e-4 multivisplice_train.sh
 #    (exported vars take precedence over in-script defaults)
 # ───────────────────────────────────────────────────────────────────────────
 
@@ -31,7 +31,7 @@ LATENT_DIM=40                     # --n_latent (default: None = √n_hidden)
 # N_LAYERS_DECODER=2               # --n_layers_decoder (default: 2)
 # DROPOUT_RATE=0.1                 # --dropout_rate (default: 0.1)
 # GENE_LIKELIHOOD="zinb"         # --gene_likelihood (default: "zinb") 
-# SPLICING_LOSS_TYPE="beta_binomial" # --splicing_loss_type (default: "beta_binomial")
+SPLICING_LOSS_TYPE="binomial" # --splicing_loss_type (default: "beta_binomial")
 # SPLICING_CONCENTRATION="None"   # --splicing_concentration (default: None)
 # DISPERSION="gene"              # --dispersion (default: "gene")
 # USE_BATCH_NORM="none"          # --use_batch_norm (default: "none")
