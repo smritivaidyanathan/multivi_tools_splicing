@@ -35,7 +35,7 @@ MUDATA_PATH = (
     "MODEL_INPUT/052025/aligned__ge_splice_combined_20250513_035938.h5mu"
 )
 
-UMAP_GROUP = "cell_type_grouped"
+UMAP_GROUP = "broad_cell_type"
 MISSING_PCT_PAIRS = [(0.0, 0.2), (0.2, 0.0), (0.2, 0.2)]
 SEED = 42
 
@@ -148,7 +148,7 @@ def evaluate_imputation(original, imputed):
         x1, x2 = true_c, pred
     res = {
         'mse': float((diff**2).mean()),
-        'median_l1': float(abs(diff).median()),
+        'median_l1': float(np.median(np.abs(diff))),
         'spearman': float(spearmanr(x1, x2).correlation),
     }
     print(f"      -> eval results {res}", flush=True)
@@ -197,6 +197,17 @@ def main():
 
         print("  * loading fresh MuData…", flush=True)
         mdata = mu.read_h5mu(MUDATA_PATH)
+
+        # ─────────── subsample 5% of cells to avoid OOM ───────────
+        n_cells = mdata.n_obs
+        n_sub   = max(1, int(0.05 * n_cells))          # 5% of the cells
+        rng     = np.random.default_rng(SEED)
+        sub_idx = rng.choice(n_cells, size=n_sub, replace=False)
+        # this slices _both_ modalities down to the same obs:
+        mdata   = mdata[sub_idx, :]
+        print(f"  → working on a {n_sub}/{n_cells} (~{n_sub/n_cells:.1%}) subset of cells")
+        # ─────────────────────────────────────────────────────────────
+
         print("  * loaded MuData", flush=True)
 
         orig = corrupt_mudata_inplace(mdata, pct_rna, pct_splice, SEED)
@@ -206,7 +217,7 @@ def main():
             print(f"  * Training {name} …", flush=True)
             model = setup_fn(mdata)
             print("    - calling model.train()", flush=True)
-            model.train(max_epochs=10)
+            model.train(max_epochs=5)
             print("    - training complete", flush=True)
 
             print("    - computing imputation…", flush=True)
@@ -215,8 +226,14 @@ def main():
             imp_expr = expr * lib[:,None]
             imp_spl  = model.get_normalized_splicing(return_numpy=True)
 
-            m_rna = evaluate_imputation(orig['rna'], imp_expr)
-            m_spl = evaluate_imputation(orig['splice'], imp_spl)
+            if orig['rna'] is not None:
+                m_rna = evaluate_imputation(orig['rna'], imp_expr)
+            else:
+                m_rna = {'mse': np.nan, 'median_l1': np.nan, 'spearman': np.nan}
+            if orig['splice'] is not None:
+                m_spl = evaluate_imputation(orig['splice'], imp_spl)
+            else:
+                m_spl = {'mse': np.nan, 'median_l1': np.nan, 'spearman': np.nan}
 
             records.append({
                 'model': name, 'pct_rna': pct_rna, 'pct_splice': pct_splice,

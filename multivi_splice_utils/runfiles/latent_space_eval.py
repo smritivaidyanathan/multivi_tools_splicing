@@ -152,8 +152,8 @@ records = []
 
 # only consider cell types with at least 1000 cells
 counts = mdata["rna"].obs[UMAP_GROUP].value_counts()
-valid_ct = counts[counts >= 1000].index.tolist()
-print(f"Cell types with ≥1000 cells: {valid_ct}")
+valid_ct = counts[counts >= 5000].index.tolist()
+print(f"Cell types with ≥5000 cells: {valid_ct}")
 
 def get_latents(model):
     return {
@@ -188,36 +188,27 @@ for ct in valid_ct:
         x2 = {m: Z[m][idx2] for m in Z}
 
         for k in CLUSTER_NUMBERS:
-            km = KMeans(n_clusters=k, random_state=RANDOM_SEED)
+            km      = KMeans(n_clusters=k, random_state=RANDOM_SEED)
             labels1 = km.fit_predict(x1["joint"])
             labels2 = km.predict(x2["joint"])
-            
-            # for largest cell type, plot confusion
-            if ct == TARGET_CELL_TYPE:
-                cm = confusion_matrix(labels1, labels2)
-                disp = ConfusionMatrixDisplay(cm)
-                fig_cm, ax_cm = plt.subplots(figsize=(6,6))
-                disp.plot(ax=ax_cm, cmap="Blues", colorbar=False)
-                ax_cm.set_title(f"{ct} — {name} — k={k}")
-                cm_out = os.path.join(FIG_DIR, f"confusion_{name}_{ct.replace(' ','_')}_k{k}.png")
-                fig_cm.savefig(cm_out, dpi=300, bbox_inches="tight")
-                plt.close(fig_cm)
-                print(f"    saved confusion matrix → {cm_out}")
 
-            # supervised classifier and all four metrics:
             for mod in ["joint", "expression", "splicing"]:
+                # 1) train on half-2
                 clf = LogisticRegression(max_iter=200, random_state=RANDOM_SEED)
                 clf.fit(x2[mod], labels2)
+                # 2) predict on half-1
                 pred = clf.predict(x1[mod])
+
+                # 3) compute your metrics
                 acc  = (pred == labels1).mean()
                 prec = precision_score(labels1, pred, average="weighted", zero_division=0)
                 rec  = recall_score(labels1, pred, average="weighted", zero_division=0)
                 f1   = f1_score(labels1, pred, average="weighted", zero_division=0)
                 for metric, val in [
-                    ("accuracy", acc),
+                    ("accuracy",  acc),
                     ("precision", prec),
-                    ("recall", rec),
-                    ("f1", f1),
+                    ("recall",    rec),
+                    ("f1",        f1),
                 ]:
                     records.append({
                         "model":     name,
@@ -227,7 +218,24 @@ for ct in valid_ct:
                         "metric":    metric,
                         "value":     val,
                     })
+
                 print(f"  k={k:2d}, {mod:12s} → acc={acc:.3f}, prec={prec:.3f}, rec={rec:.3f}, f1={f1:.3f}")
+
+                # 4) if this is your target cell‐type, also plot & save the confusion matrix:
+                if ct == TARGET_CELL_TYPE:
+                    cm   = confusion_matrix(labels1, pred)
+                    disp = ConfusionMatrixDisplay(cm)
+                    fig_cm, ax_cm = plt.subplots(figsize=(5,5))
+                    disp.plot(ax=ax_cm, cmap="Blues", colorbar=False)
+                    ax_cm.set_title(f"{ct} — {name} — {mod} — k={k}")
+                    cm_out = os.path.join(
+                        FIG_DIR,
+                        f"confusion_{name}_{ct.replace(' ','_')}_{mod}_k{k}.png",
+                    )
+                    fig_cm.savefig(cm_out, dpi=300, bbox_inches="tight")
+                    plt.close(fig_cm)
+                    print(f"    saved confusion matrix → {cm_out}")
+
 
 # assemble and save
 df_acc = pd.DataFrame.from_records(records)
