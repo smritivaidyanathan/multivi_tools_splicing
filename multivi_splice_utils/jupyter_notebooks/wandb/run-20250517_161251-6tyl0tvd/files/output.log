@@ -1,0 +1,14 @@
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1,2]
+Embedding shape: (34845, 32)
+[[nan nan nan ... nan nan nan]
+ [nan nan nan ... nan nan nan]
+ [nan nan nan ... nan nan nan]
+ ...
+ [nan nan nan ... nan nan nan]
+ [nan nan nan ... nan nan nan]
+ [nan nan nan ... nan nan nan]]
+[[nan nan nan nan nan]
+ [nan nan nan nan nan]
+ [nan nan nan nan nan]
+ [nan nan nan nan nan]
+ [nan nan nan nan nan]]

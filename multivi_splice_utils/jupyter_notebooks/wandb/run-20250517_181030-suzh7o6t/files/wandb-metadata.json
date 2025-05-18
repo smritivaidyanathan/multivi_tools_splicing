@@ -1,0 +1,57 @@
+{
+  "os":  "Linux-5.15.0-125-generic-x86_64-with-glibc2.35",
+  "python":  "CPython 3.12.8",
+  "startedAt":  "2025-05-17T22:10:30.559173Z",
+  "program":  "/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/multivi_splice_utils/jupyter_notebooks/multi_vi_splice_notebook.ipynb",
+  "codePath":  "multivi_splice_utils/jupyter_notebooks/multi_vi_splice_notebook.ipynb",
+  "git":  {
+    "remote":  "https://github.com/smritivaidyanathan/multivi_tools_splicing.git",
+    "commit":  "6df0d4076512cc60c5a3b7fd0d7f10f3e7039f4b"
+  },
+  "email":  "sv2785@columbia.edu",
+  "root":  ".",
+  "host":  "ne1dg6-010.nygenome.org",
+  "executable":  "/gpfs/commons/home/svaidyanathan/miniconda3/envs/scvi-env/bin/python",
+  "codePathLocal":  "multi_vi_splice_notebook.ipynb",
+  "cpu_count":  24,
+  "cpu_count_logical":  48,
+  "gpu":  "NVIDIA L40S",
+  "gpu_count":  3,
+  "disk":  {
+    "/":  {
+      "total":  "476575662080",
+      "used":  "14938750976"
+    }
+  },
+  "memory":  {
+    "total":  "405091119104"
+  },
+  "cpu":  {
+    "count":  24,
+    "countLogical":  48
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA L40S",
+      "memoryTotal":  "48305799168",
+      "cudaCores":  18176,
+      "architecture":  "Ada"
+    },
+    {
+      "name":  "NVIDIA L40S",
+      "memoryTotal":  "48305799168",
+      "cudaCores":  18176,
+      "architecture":  "Ada"
+    },
+    {
+      "name":  "NVIDIA L40S",
+      "memoryTotal":  "48305799168",
+      "cudaCores":  18176,
+      "architecture":  "Ada"
+    }
+  ],
+  "slurm":  {
+    "job_id":  "4770616"
+  },
+  "cudaVersion":  "12.4"
+}

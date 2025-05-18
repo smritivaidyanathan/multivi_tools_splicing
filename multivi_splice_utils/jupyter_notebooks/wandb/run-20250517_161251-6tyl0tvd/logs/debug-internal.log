@@ -1,0 +1,10 @@
+{"time":"2025-05-17T16:12:51.805963145-04:00","level":"INFO","msg":"stream: starting","core version":"0.19.7","symlink path":"wandb/run-20250517_161251-6tyl0tvd/logs/debug-core.log"}
+{"time":"2025-05-17T16:12:51.940467056-04:00","level":"INFO","msg":"created new stream","id":"6tyl0tvd"}
+{"time":"2025-05-17T16:12:51.940540836-04:00","level":"INFO","msg":"stream: started","id":"6tyl0tvd"}
+{"time":"2025-05-17T16:12:51.940762646-04:00","level":"INFO","msg":"writer: Do: started","stream_id":"6tyl0tvd"}
+{"time":"2025-05-17T16:12:51.941017757-04:00","level":"INFO","msg":"handler: started","stream_id":"6tyl0tvd"}
+{"time":"2025-05-17T16:12:51.941061367-04:00","level":"INFO","msg":"sender: started","stream_id":"6tyl0tvd"}
+{"time":"2025-05-17T16:12:52.222290007-04:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-17T16:13:07.595674331-04:00","level":"INFO","msg":"Pausing system monitor"}
+{"time":"2025-05-17T16:17:56.478619023-04:00","level":"INFO","msg":"Resuming system monitor"}
+{"time":"2025-05-17T16:17:56.520962817-04:00","level":"INFO","msg":"Pausing system monitor"}

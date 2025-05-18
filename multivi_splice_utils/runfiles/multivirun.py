@@ -141,33 +141,58 @@ wandb_logger = WandbLogger(project="multivi-splice", config=full_config)
 
 
 
-print(f"Reading MuData from {MUDATA_PATH}…")
-mdata = mu.read_h5mu(MUDATA_PATH)
-
-
 from scipy import sparse
 import numpy as np
 
-# grab the csr layer
-splicing = mdata["splicing"]
-cluster = splicing.layers["cell_by_cluster_matrix"]
+mdata = mu.read_h5mu(MUDATA_PATH)
 
-# ensure it’s CSR
+# grab the splicing modality
+splicing = mdata["splicing"]
+
+# 1) load cluster‐ and junction‐counts
+cluster = splicing.layers["cell_by_cluster_matrix"]
+junction = splicing.layers["cell_by_junction_matrix"]
+
+# 2) ensure CSR
 if not sparse.isspmatrix_csr(cluster):
     cluster = sparse.csr_matrix(cluster)
+if not sparse.isspmatrix_csr(junction):
+    junction = sparse.csr_matrix(junction)
 
+# 3) build psi_mask (1 wherever cluster>0)
 mask = cluster.copy()
 mask.data = np.ones_like(mask.data, dtype=np.uint8)
-
 splicing.layers["psi_mask"] = mask
+
+# 4) compute junc_ratio = junction / cluster, nan→0
+#    convert to dense for element‐wise division
+cluster_arr = cluster.toarray()
+junction_arr = junction.toarray()
+junc_ratio = np.divide(
+    junction_arr,
+    cluster_arr,
+    out=np.zeros_like(junction_arr, dtype=float),
+    where=(cluster_arr != 0)
+)
+# 5) assign back (dense array is fine here)
+splicing.layers["junc_ratio"] = junc_ratio
+
+print(junc_ratio)
 
 print("Now splicing layers:", splicing.layers.keys())
 print(f"Mask: {mask}")
+print(f"junc_ratio shape: {junc_ratio.shape}")
+import gc
+del cluster, junction, cluster_arr, junction_arr, mask
+gc.collect()  # give Python a nudge to free the memory
 
+
+print("MuData modalities loaded:", list(mdata.mod.keys()))
+print(mdata)
 
 scvi.model.MULTIVISPLICE.setup_mudata(
     mdata,
-    batch_key="mouse.id",
+    batch_key="dataset",
     size_factor_key="X_library_size",
     rna_layer="raw_counts",
     junc_ratio_layer="junc_ratio",
@@ -182,9 +207,38 @@ model = scvi.model.MULTIVISPLICE(
     mdata,
     n_genes=(mdata["rna"].var["modality"] == "Gene_Expression").sum(),
     n_junctions=(mdata["splicing"].var["modality"] == "Splicing").sum(),
+    splicing_architecture="partial",
     **model_kwargs,
 )
 model.view_anndata_setup()
+
+# 1) Get the embedding module
+emb_mod = model.module.z_encoder_splicing.feature_embedding
+
+# 2) If it’s an nn.Embedding layer, grab .weight; otherwise emb_mod is already the weight matrix
+weight_tensor = getattr(emb_mod, "weight", emb_mod)
+
+# 3) Detach, move to CPU, convert to NumPy
+emb = weight_tensor.detach().cpu().numpy()
+
+# 4) Print shape and contents (or slice if it's huge)
+print("Embedding shape:", emb.shape)
+print(emb)           # prints the full matrix
+# or, for a quick peek:
+print(emb[:5, :5])   # first 5 rows × 5 cols
+
+jr_info = model.adata_manager.data_registry["junc_ratio"]
+jr_key, mod_key = jr_info.attr_key, jr_info.mod_key
+
+ac_info = model.adata_manager.data_registry["atse_counts_key"]
+ac_key = ac_info.attr_key
+
+# 2) Grab as CSR matrices
+X = model.adata["splicing"].layers["junc_ratio"]
+
+print(X)
+C = model.adata["splicing"].layers[ac_key]
+
 
 # ------------------------------
 # 7. Train

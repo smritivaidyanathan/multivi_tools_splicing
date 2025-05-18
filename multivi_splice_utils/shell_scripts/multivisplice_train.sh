@@ -2,7 +2,7 @@
 #SBATCH --job-name=MultiVI-Splice-Training
 #SBATCH --mem=300G
 #SBATCH --partition=gpu
-#SBATCH --time=24:00:00
+#SBATCH --time=48:00:00
 #SBATCH --gres=gpu:1
 
 ### ─── USER EDITABLE CONFIG ────────────────────────────────────────────── ###
@@ -26,7 +26,7 @@ MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SP
 # MODALITY_WEIGHTS="equal"       # --modality_weights (default: "equal")
 # MODALITY_PENALTY="Jeffreys"    # --modality_penalty (default: "Jeffreys")
 # N_HIDDEN="None"                # --n_hidden (default: None = √n_junctions)
-LATENT_DIM=30                     # --n_latent (default: None = √n_hidden)
+LATENT_DIM=40                     # --n_latent (default: None = √n_hidden)
 # N_LAYERS_ENCODER=2               # --n_layers_encoder (default: 2)
 # N_LAYERS_DECODER=2               # --n_layers_decoder (default: 2)
 # DROPOUT_RATE=0.1                 # --dropout_rate (default: 0.1)
@@ -42,7 +42,7 @@ LATENT_DIM=30                     # --n_latent (default: None = √n_hidden)
 # FULLY_PAIRED="false"           # --fully_paired (default: false)
 
 # Optional hyperparams for TRAINING (uncomment to override; defaults in parentheses):
-MAX_EPOCHS=10                   # --max_epochs (default: 500)
+#MAX_EPOCHS=20                   # --max_epochs (default: 500)
 # LR=1e-4                          # --lr (default: 1e-4)
 # ACCELERATOR="auto"             # --accelerator (default: "auto")
 # DEVICES="auto"                 # --devices (default: "auto")

@@ -1,0 +1,97 @@
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1,2]
+ExprEncoder: qzm_expr NaNs=0, qzv_expr NaNs=0
+x_spl min/max=0.000e+00/1.000e+00, mask sum=728654.0
+PartialEncoder output: mu shape=(128, 11),  raw_logvar shape=(128, 11)   mu NaNs=0,  raw_logvar NaNs=0
+  var min/max = 3.463e-01/4.040e+00,  var NaNs =0
+  z_spl shape=(128, 11), NaNs=0
+After mix: qz_m NaNs=0, qz_v NaNs=0
+ExprEncoder: qzm_expr NaNs=0, qzv_expr NaNs=0
+x_spl min/max=0.000e+00/1.000e+00, mask sum=982647.0
+PartialEncoder output: mu shape=(128, 11),  raw_logvar shape=(128, 11)   mu NaNs=0,  raw_logvar NaNs=0
+  var min/max = 3.475e-01/3.821e+00,  var NaNs =0
+  z_spl shape=(128, 11), NaNs=0
+After mix: qz_m NaNs=0, qz_v NaNs=0
+ExprEncoder: qzm_expr NaNs=0, qzv_expr NaNs=0
+x_spl min/max=0.000e+00/1.000e+00, mask sum=896340.0
+PartialEncoder output: mu shape=(128, 11),  raw_logvar shape=(128, 11)   mu NaNs=0,  raw_logvar NaNs=0
+  var min/max = 3.363e-01/3.822e+00,  var NaNs =0
+  z_spl shape=(128, 11), NaNs=0
+After mix: qz_m NaNs=0, qz_v NaNs=0
+ExprEncoder: qzm_expr NaNs=0, qzv_expr NaNs=0
+x_spl min/max=0.000e+00/1.000e+00, mask sum=861336.0
+PartialEncoder output: mu shape=(128, 11),  raw_logvar shape=(128, 11)   mu NaNs=0,  raw_logvar NaNs=0
+  var min/max = 3.693e-01/3.590e+00,  var NaNs =0
+  z_spl shape=(128, 11), NaNs=0
+After mix: qz_m NaNs=0, qz_v NaNs=0
+ExprEncoder: qzm_expr NaNs=0, qzv_expr NaNs=0
+x_spl min/max=0.000e+00/1.000e+00, mask sum=768920.0
+PartialEncoder output: mu shape=(128, 11),  raw_logvar shape=(128, 11)   mu NaNs=0,  raw_logvar NaNs=0
+  var min/max = 3.655e-01/3.613e+00,  var NaNs =0
+  z_spl shape=(128, 11), NaNs=0
+After mix: qz_m NaNs=0, qz_v NaNs=0
+ExprEncoder: qzm_expr NaNs=0, qzv_expr NaNs=0
+x_spl min/max=0.000e+00/1.000e+00, mask sum=834074.0
+PartialEncoder output: mu shape=(128, 11),  raw_logvar shape=(128, 11)   mu NaNs=0,  raw_logvar NaNs=0
+  var min/max = 3.515e-01/3.390e+00,  var NaNs =0
+  z_spl shape=(128, 11), NaNs=0
+After mix: qz_m NaNs=0, qz_v NaNs=0
+ExprEncoder: qzm_expr NaNs=0, qzv_expr NaNs=0
+x_spl min/max=0.000e+00/1.000e+00, mask sum=843120.0
+PartialEncoder output: mu shape=(128, 11),  raw_logvar shape=(128, 11)   mu NaNs=0,  raw_logvar NaNs=0
+  var min/max = 3.946e-01/3.528e+00,  var NaNs =0
+  z_spl shape=(128, 11), NaNs=0
+After mix: qz_m NaNs=0, qz_v NaNs=0
+ExprEncoder: qzm_expr NaNs=0, qzv_expr NaNs=0
+x_spl min/max=0.000e+00/1.000e+00, mask sum=855521.0
+PartialEncoder output: mu shape=(128, 11),  raw_logvar shape=(128, 11)   mu NaNs=0,  raw_logvar NaNs=0
+  var min/max = 3.683e-01/3.587e+00,  var NaNs =0
+  z_spl shape=(128, 11), NaNs=0
+After mix: qz_m NaNs=0, qz_v NaNs=0
+ExprEncoder: qzm_expr NaNs=0, qzv_expr NaNs=0
+x_spl min/max=0.000e+00/1.000e+00, mask sum=913825.0
+PartialEncoder output: mu shape=(128, 11),  raw_logvar shape=(128, 11)   mu NaNs=0,  raw_logvar NaNs=0
+  var min/max = 3.615e-01/3.612e+00,  var NaNs =0
+  z_spl shape=(128, 11), NaNs=0
+After mix: qz_m NaNs=0, qz_v NaNs=0
+ExprEncoder: qzm_expr NaNs=0, qzv_expr NaNs=0
+x_spl min/max=0.000e+00/1.000e+00, mask sum=894274.0
+PartialEncoder output: mu shape=(128, 11),  raw_logvar shape=(128, 11)   mu NaNs=0,  raw_logvar NaNs=0
+  var min/max = 3.796e-01/3.562e+00,  var NaNs =0
+  z_spl shape=(128, 11), NaNs=0
+After mix: qz_m NaNs=0, qz_v NaNs=0
+ExprEncoder: qzm_expr NaNs=0, qzv_expr NaNs=0
+x_spl min/max=0.000e+00/1.000e+00, mask sum=784277.0
+PartialEncoder output: mu shape=(128, 11),  raw_logvar shape=(128, 11)   mu NaNs=0,  raw_logvar NaNs=0
+  var min/max = 3.689e-01/4.090e+00,  var NaNs =0
+  z_spl shape=(128, 11), NaNs=0
+After mix: qz_m NaNs=0, qz_v NaNs=0
+ExprEncoder: qzm_expr NaNs=0, qzv_expr NaNs=0
+x_spl min/max=0.000e+00/1.000e+00, mask sum=837266.0
+PartialEncoder output: mu shape=(128, 11),  raw_logvar shape=(128, 11)   mu NaNs=0,  raw_logvar NaNs=0
+  var min/max = 3.891e-01/3.367e+00,  var NaNs =0
+  z_spl shape=(128, 11), NaNs=0
+After mix: qz_m NaNs=0, qz_v NaNs=0
+ExprEncoder: qzm_expr NaNs=0, qzv_expr NaNs=0
+x_spl min/max=0.000e+00/1.000e+00, mask sum=893437.0
+PartialEncoder output: mu shape=(128, 11),  raw_logvar shape=(128, 11)   mu NaNs=0,  raw_logvar NaNs=0
+  var min/max = 3.783e-01/3.598e+00,  var NaNs =0
+  z_spl shape=(128, 11), NaNs=0
+After mix: qz_m NaNs=0, qz_v NaNs=0
+ExprEncoder: qzm_expr NaNs=0, qzv_expr NaNs=0
+x_spl min/max=0.000e+00/1.000e+00, mask sum=913521.0
+PartialEncoder output: mu shape=(128, 11),  raw_logvar shape=(128, 11)   mu NaNs=0,  raw_logvar NaNs=0
+  var min/max = 3.828e-01/3.558e+00,  var NaNs =0
+  z_spl shape=(128, 11), NaNs=0
+After mix: qz_m NaNs=0, qz_v NaNs=0
+ExprEncoder: qzm_expr NaNs=0, qzv_expr NaNs=0
+x_spl min/max=0.000e+00/1.000e+00, mask sum=801664.0
+PartialEncoder output: mu shape=(128, 11),  raw_logvar shape=(128, 11)   mu NaNs=0,  raw_logvar NaNs=0
+  var min/max = 3.882e-01/3.739e+00,  var NaNs =0
+  z_spl shape=(128, 11), NaNs=0
+After mix: qz_m NaNs=0, qz_v NaNs=0
+ExprEncoder: qzm_expr NaNs=0, qzv_expr NaNs=0
+x_spl min/max=0.000e+00/1.000e+00, mask sum=877153.0
+PartialEncoder output: mu shape=(128, 11),  raw_logvar shape=(128, 11)   mu NaNs=0,  raw_logvar NaNs=0
+  var min/max = 3.904e-01/3.271e+00,  var NaNs =0
+  z_spl shape=(128, 11), NaNs=0
+After mix: qz_m NaNs=0, qz_v NaNs=0

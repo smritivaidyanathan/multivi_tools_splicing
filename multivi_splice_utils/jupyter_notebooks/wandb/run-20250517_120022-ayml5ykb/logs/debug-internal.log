@@ -1,0 +1,10 @@
+{"time":"2025-05-17T12:00:22.328848343-04:00","level":"INFO","msg":"stream: starting","core version":"0.19.7","symlink path":"wandb/run-20250517_120022-ayml5ykb/logs/debug-core.log"}
+{"time":"2025-05-17T12:00:22.557245465-04:00","level":"INFO","msg":"created new stream","id":"ayml5ykb"}
+{"time":"2025-05-17T12:00:22.557318235-04:00","level":"INFO","msg":"stream: started","id":"ayml5ykb"}
+{"time":"2025-05-17T12:00:22.557494665-04:00","level":"INFO","msg":"writer: Do: started","stream_id":"ayml5ykb"}
+{"time":"2025-05-17T12:00:22.558037356-04:00","level":"INFO","msg":"handler: started","stream_id":"ayml5ykb"}
+{"time":"2025-05-17T12:00:22.558081236-04:00","level":"INFO","msg":"sender: started","stream_id":"ayml5ykb"}
+{"time":"2025-05-17T12:00:22.815936839-04:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-17T12:00:26.887552587-04:00","level":"INFO","msg":"Pausing system monitor"}
+{"time":"2025-05-17T12:01:12.461130044-04:00","level":"INFO","msg":"Resuming system monitor"}
+{"time":"2025-05-17T12:01:12.768743512-04:00","level":"INFO","msg":"Pausing system monitor"}

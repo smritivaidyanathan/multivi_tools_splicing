@@ -1,0 +1,8 @@
+{"time":"2025-05-17T17:53:09.450321639-04:00","level":"INFO","msg":"stream: starting","core version":"0.19.7","symlink path":"wandb/run-20250517_175309-tyknc2gx/logs/debug-core.log"}
+{"time":"2025-05-17T17:53:09.786721418-04:00","level":"INFO","msg":"created new stream","id":"tyknc2gx"}
+{"time":"2025-05-17T17:53:09.786792558-04:00","level":"INFO","msg":"stream: started","id":"tyknc2gx"}
+{"time":"2025-05-17T17:53:09.786936899-04:00","level":"INFO","msg":"writer: Do: started","stream_id":"tyknc2gx"}
+{"time":"2025-05-17T17:53:09.787352712-04:00","level":"INFO","msg":"handler: started","stream_id":"tyknc2gx"}
+{"time":"2025-05-17T17:53:09.787394272-04:00","level":"INFO","msg":"sender: started","stream_id":"tyknc2gx"}
+{"time":"2025-05-17T17:53:10.100035899-04:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-17T17:53:34.54473291-04:00","level":"INFO","msg":"Pausing system monitor"}

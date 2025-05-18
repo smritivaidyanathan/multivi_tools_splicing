@@ -1,0 +1,109 @@
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1,2]
+Embedding shape: (34845, 32)
+[[-2.7411268e-03 -2.3917079e-03 -3.3488311e-03 ... -1.9264332e-04
+   6.1170268e-04 -5.9056759e-04]
+ [ 6.0458169e-03  4.9132393e-03  5.9671239e-03 ... -1.5466739e-04
+  -8.5173472e-04  2.1205181e-03]
+ [-3.3046904e-03 -2.5215312e-03 -2.6182928e-03 ...  3.4731071e-04
+   2.4003204e-04 -1.5299504e-03]
+ ...
+ [-6.3446158e-04  7.1660063e-04 -4.3252188e-05 ... -5.9942598e-04
+   4.4023313e-04  2.7468295e-05]
+ [ 7.8454497e-04  3.9830356e-04 -2.0426884e-03 ...  6.0515426e-04
+  -1.3446198e-03  3.5341154e-04]
+ [-7.8454497e-04 -3.9830356e-04  2.0426884e-03 ... -6.0515426e-04
+   1.3446198e-03 -3.5341154e-04]]
+[[-0.00274113 -0.00239171 -0.00334883  0.00207232  0.00218638]
+ [ 0.00604582  0.00491324  0.00596712 -0.00479916 -0.00500565]
+ [-0.00330469 -0.00252153 -0.00261829  0.00272684  0.00281927]
+ [ 0.00045165 -0.00022617  0.00047307 -0.00088143  0.00082615]
+ [-0.00045165  0.00022617 -0.00047307  0.00088143 -0.00082615]]
+/scratch/ipykernel_207005/1115290015.py:1: DeprecationWarning: `save_best` is deprecated in v1.2 and will be removed in v1.3. Please use `enable_checkpointing` instead. See https://github.com/scverse/scvi-tools/issues/2568 for more details.
+  model.train(logger=wandb_logger)
+Trainer will use only 1 of 3 GPUs because it is running inside an interactive / notebook environment. You may try to set `Trainer(devices=3)` but please note that multi-GPU inside interactive / notebook environments is considered experimental and unstable. Your mileage may vary.
+/gpfs/commons/home/svaidyanathan/miniconda3/envs/scvi-env/lib/python3.12/site-packages/lightning/fabric/plugins/environments/slurm.py:204: The `srun` command is available on your system but is not used. HINT: If your intention is to run Lightning on SLURM, prepend your python command with `srun` like so: srun python /gpfs/commons/home/svaidyanathan/miniconda3/envs/scv ...
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+HPU available: False, using: 0 HPUs
+/gpfs/commons/home/svaidyanathan/miniconda3/envs/scvi-env/lib/python3.12/site-packages/lightning/fabric/plugins/environments/slurm.py:204: The `srun` command is available on your system but is not used. HINT: If your intention is to run Lightning on SLURM, prepend your python command with `srun` like so: srun python /gpfs/commons/home/svaidyanathan/miniconda3/envs/scv ...
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1,2]
+/scratch/ipykernel_207005/1115290015.py:1: DeprecationWarning: `save_best` is deprecated in v1.2 and will be removed in v1.3. Please use `enable_checkpointing` instead. See https://github.com/scverse/scvi-tools/issues/2568 for more details.
+  model.train(logger=wandb_logger)
+Trainer will use only 1 of 3 GPUs because it is running inside an interactive / notebook environment. You may try to set `Trainer(devices=3)` but please note that multi-GPU inside interactive / notebook environments is considered experimental and unstable. Your mileage may vary.
+/gpfs/commons/home/svaidyanathan/miniconda3/envs/scvi-env/lib/python3.12/site-packages/lightning/fabric/plugins/environments/slurm.py:204: The `srun` command is available on your system but is not used. HINT: If your intention is to run Lightning on SLURM, prepend your python command with `srun` like so: srun python /gpfs/commons/home/svaidyanathan/miniconda3/envs/scv ...
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+HPU available: False, using: 0 HPUs
+/gpfs/commons/home/svaidyanathan/miniconda3/envs/scvi-env/lib/python3.12/site-packages/lightning/fabric/plugins/environments/slurm.py:204: The `srun` command is available on your system but is not used. HINT: If your intention is to run Lightning on SLURM, prepend your python command with `srun` like so: srun python /gpfs/commons/home/svaidyanathan/miniconda3/envs/scv ...
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1,2]
+Embedding shape: (34845, 32)
+[[-2.7411268e-03 -2.3917079e-03 -3.3488311e-03 ... -1.9264332e-04
+   6.1170268e-04 -5.9056759e-04]
+ [ 6.0458169e-03  4.9132393e-03  5.9671239e-03 ... -1.5466739e-04
+  -8.5173472e-04  2.1205181e-03]
+ [-3.3046904e-03 -2.5215312e-03 -2.6182928e-03 ...  3.4731071e-04
+   2.4003204e-04 -1.5299504e-03]
+ ...
+ [-6.3446158e-04  7.1660063e-04 -4.3252188e-05 ... -5.9942598e-04
+   4.4023313e-04  2.7468295e-05]
+ [ 7.8454497e-04  3.9830356e-04 -2.0426884e-03 ...  6.0515426e-04
+  -1.3446198e-03  3.5341154e-04]
+ [-7.8454497e-04 -3.9830356e-04  2.0426884e-03 ... -6.0515426e-04
+   1.3446198e-03 -3.5341154e-04]]
+[[-0.00274113 -0.00239171 -0.00334883  0.00207232  0.00218638]
+ [ 0.00604582  0.00491324  0.00596712 -0.00479916 -0.00500565]
+ [-0.00330469 -0.00252153 -0.00261829  0.00272684  0.00281927]
+ [ 0.00045165 -0.00022617  0.00047307 -0.00088143  0.00082615]
+ [-0.00045165  0.00022617 -0.00047307  0.00088143 -0.00082615]]
+Embedding shape: (34845, 32)
+[[-2.7411268e-03 -2.3917079e-03 -3.3488311e-03 ... -1.9264332e-04
+   6.1170268e-04 -5.9056759e-04]
+ [ 6.0458169e-03  4.9132393e-03  5.9671239e-03 ... -1.5466739e-04
+  -8.5173472e-04  2.1205181e-03]
+ [-3.3046904e-03 -2.5215312e-03 -2.6182928e-03 ...  3.4731071e-04
+   2.4003204e-04 -1.5299504e-03]
+ ...
+ [-6.3446158e-04  7.1660063e-04 -4.3252188e-05 ... -5.9942598e-04
+   4.4023313e-04  2.7468295e-05]
+ [ 7.8454497e-04  3.9830356e-04 -2.0426884e-03 ...  6.0515426e-04
+  -1.3446198e-03  3.5341154e-04]
+ [-7.8454497e-04 -3.9830356e-04  2.0426884e-03 ... -6.0515426e-04
+   1.3446198e-03 -3.5341154e-04]]
+[[-0.00274113 -0.00239171 -0.00334883  0.00207232  0.00218638]
+ [ 0.00604582  0.00491324  0.00596712 -0.00479916 -0.00500565]
+ [-0.00330469 -0.00252153 -0.00261829  0.00272684  0.00281927]
+ [ 0.00045165 -0.00022617  0.00047307 -0.00088143  0.00082615]
+ [-0.00045165  0.00022617 -0.00047307  0.00088143 -0.00082615]]
+[[       nan        nan        nan ...        nan        nan        nan]
+ [       nan        nan        nan ...        nan        nan        nan]
+ [       nan        nan        nan ...        nan 0.34285714 0.65714286]
+ ...
+ [1.         0.         0.         ... 0.                nan        nan]
+ [       nan        nan        nan ...        nan        nan        nan]
+ [       nan        nan        nan ...        nan        nan        nan]]
+Embedding shape: (34845, 32)
+[[-2.7411268e-03 -2.3917079e-03 -3.3488311e-03 ... -1.9264332e-04
+   6.1170268e-04 -5.9056759e-04]
+ [ 6.0458169e-03  4.9132393e-03  5.9671239e-03 ... -1.5466739e-04
+  -8.5173472e-04  2.1205181e-03]
+ [-3.3046904e-03 -2.5215312e-03 -2.6182928e-03 ...  3.4731071e-04
+   2.4003204e-04 -1.5299504e-03]
+ ...
+ [-6.3446158e-04  7.1660063e-04 -4.3252188e-05 ... -5.9942598e-04
+   4.4023313e-04  2.7468295e-05]
+ [ 7.8454497e-04  3.9830356e-04 -2.0426884e-03 ...  6.0515426e-04
+  -1.3446198e-03  3.5341154e-04]
+ [-7.8454497e-04 -3.9830356e-04  2.0426884e-03 ... -6.0515426e-04
+   1.3446198e-03 -3.5341154e-04]]
+[[-0.00274113 -0.00239171 -0.00334883  0.00207232  0.00218638]
+ [ 0.00604582  0.00491324  0.00596712 -0.00479916 -0.00500565]
+ [-0.00330469 -0.00252153 -0.00261829  0.00272684  0.00281927]
+ [ 0.00045165 -0.00022617  0.00047307 -0.00088143  0.00082615]
+ [-0.00045165  0.00022617 -0.00047307  0.00088143 -0.00082615]]
+[[       nan        nan        nan ...        nan        nan        nan]
+ [       nan        nan        nan ...        nan        nan        nan]
+ [       nan        nan        nan ...        nan 0.34285714 0.65714286]
+ ...
+ [1.         0.         0.         ... 0.                nan        nan]
+ [       nan        nan        nan ...        nan        nan        nan]
+ [       nan        nan        nan ...        nan        nan        nan]]
