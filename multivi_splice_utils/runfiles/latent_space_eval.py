@@ -12,6 +12,7 @@ import seaborn as sns  # for color palettes
 from sklearn.metrics import silhouette_score
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
 from scipy import sparse
 
 # ---------------------------
@@ -39,8 +40,8 @@ model_paths = {
 }
 UMAP_GROUP       = "broad_cell_type"
 CELL_TYPE_COLUMN = "broad_cell_type"
-TARGET_CELL_TYPE = "Excitatory Neurons"
-CLUSTER_NUMBERS  = [3, 5, 10]
+TARGET_CELL_TYPES = ["Excitatory Neurons", "MICROGLIA"]
+CLUSTER_NUMBERS  = [3, 5, 7]
 RANDOM_SEED      = 42
 
 # ---------------------------
@@ -144,135 +145,212 @@ fig.savefig(
     dpi=300,
 )
 
-# ---------------------------
-# Figure 3: Subcluster reproducibility across cell types
-# ---------------------------
-print("\nRunning subcluster reproducibility across cell types…")
+# --------------------------------------------------------------------------
+# Compute subcluster metrics + random baseline
+# --------------------------------------------------------------------------
+
+import scanpy as sc
+
+def plot_latent_umap(latent: np.ndarray,
+                     true_labels: np.ndarray,
+                     pred_labels: np.ndarray,
+                     out_prefix: str,
+                     fig_dir: str,
+                     n_neighbors: int = 15,
+                     min_dist: float = 0.1):
+    """
+    Given a latent matrix (cells × dims), and two 1d label arrays (true vs pred),
+    compute a UMAP on the latent, then save:
+      - {fig_dir}/{out_prefix}_true_umap.png
+      - {fig_dir}/{out_prefix}_pred_umap.png
+    """
+    ad = sc.AnnData(latent)
+    ad.obsm["X_latent"] = latent
+    ad.obs["true"] = true_labels.astype(str)
+    ad.obs["pred"] = pred_labels.astype(str)
+
+    sc.pp.neighbors(ad, use_rep="X_latent", n_neighbors=n_neighbors)
+    sc.tl.umap(ad, min_dist=min_dist)
+
+    for label_type in ["true", "pred"]:
+        fig, ax = plt.subplots(figsize=(4, 4))
+        sc.pl.umap(
+            ad,
+            color=label_type,
+            ax=ax,
+            show=False,
+            legend_loc=None,
+        )
+        ax.set_title(f"UMAP ({out_prefix}) — {label_type}")
+        fname = os.path.join(fig_dir, f"{out_prefix}_{label_type}_umap.png")
+        fig.savefig(fname, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+
+
+
+print("\nEvaluating subcluster reproducibility…")
 records = []
 
-# only consider cell types with at least 1000 cells
+# select big cell‐types
 counts = mdata["rna"].obs[UMAP_GROUP].value_counts()
 valid_ct = counts[counts >= 5000].index.tolist()
-print(f"Cell types with ≥5000 cells: {valid_ct}")
-
-def get_latents(model):
-    return {
-        "joint":     model.get_latent_representation(),
-        "expression":model.get_latent_representation(modality="expression"),
-        "splicing":  model.get_latent_representation(modality="splicing"),
-    }
-
-from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
-
-records = []
-TARGET_CELL_TYPE = "Excitatory Neurons"
 
 for ct in valid_ct:
-    print(f"\n--- Processing cell type: {ct} (n={counts[ct]}) ---")
-    obs_ct = mdata["rna"].obs[UMAP_GROUP] == ct
-    cells = mdata["rna"].obs_names[obs_ct].tolist()
+    print(f"  cell type {ct} (n={counts[ct]})")
+    mask_ct = mdata["rna"].obs[UMAP_GROUP] == ct
+    cells   = mdata["rna"].obs_names[mask_ct].tolist()
     random.seed(RANDOM_SEED); random.shuffle(cells)
     half = len(cells) // 2
     idx1 = np.isin(mdata["rna"].obs_names, cells[:half])
     idx2 = np.isin(mdata["rna"].obs_names, cells[half:])
 
     for name, path in model_paths.items():
-        print(f"Model '{name}':")
+        # reload to get all three modalities
         model = scvi.model.MULTIVISPLICE.load(path, adata=mdata)
         Z = {
             "joint":      model.get_latent_representation(),
             "expression": model.get_latent_representation(modality="expression"),
             "splicing":   model.get_latent_representation(modality="splicing"),
         }
-        x1 = {m: Z[m][idx1] for m in Z}
-        x2 = {m: Z[m][idx2] for m in Z}
 
         for k in CLUSTER_NUMBERS:
-            km      = KMeans(n_clusters=k, random_state=RANDOM_SEED)
-            labels1 = km.fit_predict(x1["joint"])
-            labels2 = km.predict(x2["joint"])
+            # cluster on joint
+            km       = KMeans(n_clusters=k, random_state=RANDOM_SEED)
+            labels1  = km.fit_predict(Z["joint"][idx1])
+            labels2  = km.predict    (Z["joint"][idx2])
 
-            for mod in ["joint", "expression", "splicing"]:
-                # 1) train on half-2
+            # three real modalities
+            for mod in ["joint","expression","splicing"]:
                 clf = LogisticRegression(max_iter=200, random_state=RANDOM_SEED)
-                clf.fit(x2[mod], labels2)
-                # 2) predict on half-1
-                pred = clf.predict(x1[mod])
+                clf.fit(Z[mod][idx2], labels2)
+                pred = clf.predict(Z[mod][idx1])
 
-                # 3) compute your metrics
-                acc  = (pred == labels1).mean()
-                prec = precision_score(labels1, pred, average="weighted", zero_division=0)
-                rec  = recall_score(labels1, pred, average="weighted", zero_division=0)
-                f1   = f1_score(labels1, pred, average="weighted", zero_division=0)
-                for metric, val in [
-                    ("accuracy",  acc),
-                    ("precision", prec),
-                    ("recall",    rec),
-                    ("f1",        f1),
+                for metric_name, func in [
+                    ("accuracy",  lambda a,p: (p==a).mean()),
+                    ("precision", lambda a,p: precision_score(a,p,average="weighted",zero_division=0)),
+                    ("recall",    lambda a,p: recall_score(a,p,average="weighted",zero_division=0)),
+                    ("f1",        lambda a,p: f1_score(a,p,average="weighted",zero_division=0)),
                 ]:
+                    val = func(labels1, pred)
                     records.append({
                         "model":     name,
                         "cell_type": ct,
                         "modality":  mod,
                         "k":         k,
-                        "metric":    metric,
+                        "metric":    metric_name,
                         "value":     val,
                     })
-
-                print(f"  k={k:2d}, {mod:12s} → acc={acc:.3f}, prec={prec:.3f}, rec={rec:.3f}, f1={f1:.3f}")
-
-                # 4) if this is your target cell‐type, also plot & save the confusion matrix:
-                if ct == TARGET_CELL_TYPE:
-                    cm   = confusion_matrix(labels1, pred)
+                # optional: confusion matrices for some types
+                if ct in TARGET_CELL_TYPES:
+                    cm = confusion_matrix(labels1, pred)
                     disp = ConfusionMatrixDisplay(cm)
                     fig_cm, ax_cm = plt.subplots(figsize=(5,5))
                     disp.plot(ax=ax_cm, cmap="Blues", colorbar=False)
                     ax_cm.set_title(f"{ct} — {name} — {mod} — k={k}")
-                    cm_out = os.path.join(
-                        FIG_DIR,
-                        f"confusion_{name}_{ct.replace(' ','_')}_{mod}_k{k}.png",
-                    )
+                    cm_out = os.path.join(FIG_DIR, f"conf_{name}_{ct.replace(' ','_')}_{mod}_k{k}.png")
                     fig_cm.savefig(cm_out, dpi=300, bbox_inches="tight")
                     plt.close(fig_cm)
-                    print(f"    saved confusion matrix → {cm_out}")
 
+                    out_pref = f"{name.replace(' ','_')}_{ct.replace(' ','_')}_{mod}_k{k}"
+                    plot_latent_umap(
+                        latent=Z[mod][idx1],
+                        true_labels=labels1,
+                        pred_labels=pred,
+                        out_prefix=out_pref,
+                        fig_dir=FIG_DIR,
+                    )
 
-# assemble and save
+            # random‐baseline modality
+            rng = np.random.default_rng(RANDOM_SEED)
+            Zrand = rng.standard_normal(Z["joint"].shape)
+            clf   = LogisticRegression(max_iter=200, random_state=RANDOM_SEED)
+            clf.fit(Zrand[idx2], labels2)
+            pred  = clf.predict(Zrand[idx1])
+            for metric_name, func in [
+                ("accuracy",  lambda a,p: (p==a).mean()),
+                ("precision", lambda a,p: precision_score(a,p,average="weighted",zero_division=0)),
+                ("recall",    lambda a,p: recall_score(a,p,average="weighted",zero_division=0)),
+                ("f1",        lambda a,p: f1_score(a,p,average="weighted",zero_division=0)),
+            ]:
+                val = func(labels1, pred)
+                records.append({
+                    "model":     name,
+                    "cell_type": ct,
+                    "modality":  "random",
+                    "k":         k,
+                    "metric":    metric_name,
+                    "value":     val,
+                })
+            if ct in TARGET_CELL_TYPES:
+                cm = confusion_matrix(labels1, pred)
+                disp = ConfusionMatrixDisplay(cm)
+                fig_cm, ax_cm = plt.subplots(figsize=(5,5))
+                disp.plot(ax=ax_cm, cmap="Blues", colorbar=False)
+                ax_cm.set_title(f"{ct} — {name} — rand — k={k}")
+                cm_out = os.path.join(FIG_DIR, f"conf_{name}_{ct.replace(' ','_')}_rand_k{k}.png")
+                fig_cm.savefig(cm_out, dpi=300, bbox_inches="tight")
+                plt.close(fig_cm)
+
+# save
 df_acc = pd.DataFrame.from_records(records)
 df_acc.to_csv(os.path.join(LATENT_EVAL_OUTDIR, "subcluster_metrics.csv"), index=False)
-print("Saved all metrics → subcluster_metrics.csv")
 
+# --------------------------------------------------------------------------
+# Plot per‐model line charts including random
+# --------------------------------------------------------------------------
+metrics    = ["accuracy","precision","recall","f1"]
+modalities = ["joint","expression","splicing","random"]
+colors     = dict(
+    joint      = sns.color_palette("tab10")[0],
+    expression = sns.color_palette("tab10")[1],
+    splicing   = sns.color_palette("tab10")[2],
+    random     = "gray",
+)
+linestyles = dict(
+    joint      = "-",
+    expression = "-",
+    splicing   = "-",
+    random     = ":",
+)
 
-# ---- plot mean±SD across cell types for each model ----
-
-print("\nPlotting subcluster metrics…")
-metrics = ["accuracy","precision","recall","f1"]
-for metric in metrics:
-    fig, axes = plt.subplots(1, len(model_paths), figsize=(5*len(model_paths), 4))
-    for ax, name in zip(axes, model_paths):
-        sub = df_acc[(df_acc.model==name) & (df_acc.metric==metric)]
-        pivot = sub.pivot_table(
-            index="k",
-            columns="modality",
-            values="value",
-            aggfunc=["mean","std"],
-        )
-        means = pivot["mean"][["joint","expression","splicing"]]
-        stds  = pivot["std"][["joint","expression","splicing"]]
-        means.plot.bar(
-            yerr=stds,
-            capsize=4,
-            ax=ax,
-        )
-        ax.set_title(f"{name} — {metric}")
+for name in model_paths:
+    df_mod = df_acc[df_acc.model == name]
+    fig, axes = plt.subplots(2,2,figsize=(10,8), sharex=True)
+    axes = axes.flatten()
+    for ax, metric in zip(axes, metrics):
+        for mod in modalities:
+            sub = (
+                df_mod
+                [(df_mod.metric==metric)&(df_mod.modality==mod)]
+                .groupby("k")["value"]
+                .agg(["mean","std"])
+                .sort_index()
+            )
+            if sub.empty: continue
+            ax.errorbar(
+                sub.index, sub["mean"], yerr=sub["std"],
+                label = mod if mod!="random" else "random baseline",
+                color = colors[mod],
+                linestyle = linestyles[mod],
+                marker="o",
+                capsize=4,
+            )
+        ax.set_title(metric.capitalize())
         ax.set_xlabel("k")
-        ax.set_ylabel(metric.title())
-        ax.tick_params(rotation=0)
-        if ax is not axes[0]:
-            ax.get_legend().remove()
-    plt.tight_layout()
-    out = os.path.join(FIG_DIR, f"subcluster_{metric}.png")
-    fig.savefig(out, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    print(f"  saved {out}")
+        ax.set_ylabel(metric.capitalize())
+        ax.set_xticks(sorted(df_mod.k.unique()))
 
+    # shared legend on far right
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(
+        handles, labels,
+        title="Modality / Baseline",
+        loc="center right",
+        bbox_to_anchor=(0.98, 0.5),
+    )
+
+    plt.tight_layout(rect=[0,0,0.85,1.0])
+    out = os.path.join(FIG_DIR, f"subcluster_{name}.png")
+    fig.savefig(out, dpi=300)
+    plt.close(fig)
+    print("  wrote", out)
