@@ -36,7 +36,7 @@ MUDATA_PATH = (
 )
 
 UMAP_GROUP = "broad_cell_type"
-MISSING_PCT_PAIRS = [(0.0, 0.2), (0.0, 0.3), (0.2, 0.0), (0.3, 0.0 ), (0.2, 0.2), (0.3, 0.3)]
+MISSING_PCT_PAIRS = [(0.0, 0.2), (0.2, 0.0), (0.2, 0.2)]
 SEED = 42
 
 # ------------------------------------------------------------------------------
@@ -158,9 +158,10 @@ def evaluate_imputation(original, imputed):
 # Model factory
 # ------------------------------------------------------------------------------
 def define_models():
-    def build(mdata, latent_dim, distribution):
+    def build(mdata, latent_dim):
         scvi.model.MULTIVISPLICE.setup_mudata(
             mdata,
+            batch_key="mouse.id",
             size_factor_key="X_library_size",
             rna_layer="raw_counts",
             junc_ratio_layer="junc_ratio",
@@ -174,17 +175,12 @@ def define_models():
             n_genes=(mdata['rna'].var['modality']=="Gene_Expression").sum(),
             n_junctions=(mdata['splicing'].var['modality']=="Splicing").sum(),
             n_latent=latent_dim,
-            splicing_architecture = "partial", 
-            splicing_loss_type=distribution
+            splicing_architeture = "vanilla"
         )
 
     return {
-        "Splice-VI(Binomial Z=20)": lambda md: build(md, 20, "binomial"),
-        "Splice-VI(Binomial Z=30)": lambda md: build(md, 30, "binomial"),
-        "Splice-VI(Binomial Z=40)": lambda md: build(md, 40, "binomial"),
-        "Splice-VI(Beta-Binomial Z=20)": lambda md: build(md, 20, "beta_binomial"),
-        "Splice-VI(Beta-Binomial Z=30)": lambda md: build(md, 30, "beta_binomial"),
-        "Splice-VI(Beta-Binomial Z=40)": lambda md: build(md, 40, "beta_binomial"),
+        "z30": lambda md: build(md, 30),
+        "z20": lambda md: build(md, 20),
     }
 
 # ------------------------------------------------------------------------------
@@ -204,7 +200,7 @@ def main():
 
         # ─────────── subsample 5% of cells to avoid OOM ───────────
         n_cells = mdata.n_obs
-        n_sub   = max(1, int(0.5 * n_cells))          # 5% of the cells
+        n_sub   = max(1, int(0.05 * n_cells))          # 5% of the cells
         rng     = np.random.default_rng(SEED)
         sub_idx = rng.choice(n_cells, size=n_sub, replace=False)
         # this slices _both_ modalities down to the same obs:
@@ -221,28 +217,14 @@ def main():
             print(f"  * Training {name} …", flush=True)
             model = setup_fn(mdata)
             print("    - calling model.train()", flush=True)
-            model.train(max_epochs=5, batch_size = 256)
+            model.train(max_epochs=5)
             print("    - training complete", flush=True)
 
             print("    - computing imputation…", flush=True)
             expr = model.get_normalized_expression(return_numpy=True)
             lib  = model.get_library_size_factors()['expression']
-            # compute
-            imp_expr = expr * lib[:, None]
+            imp_expr = expr * lib[:,None]
             imp_spl  = model.get_normalized_splicing(return_numpy=True)
-
-            # set numpy print options if you like
-            np.set_printoptions(precision=3, suppress=True)
-
-            # choose a small slice: first 5 cells × first 5 features
-            n_cells = min(5, imp_expr.shape[0])
-            n_feats = min(5, imp_expr.shape[1])
-
-            print("Imputed expression (first cells × first genes):")
-            print(imp_expr[:n_cells, :n_feats])
-
-            print("\nImputed splicing (first cells × first junctions):")
-            print(imp_spl[:n_cells, :n_feats])
 
             if orig['rna'] is not None:
                 m_rna = evaluate_imputation(orig['rna'], imp_expr)

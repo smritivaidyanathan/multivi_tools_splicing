@@ -195,7 +195,6 @@ print(mdata)
 
 scvi.model.MULTIVISPLICE.setup_mudata(
     mdata,
-    batch_key = "dataset",
     size_factor_key="X_library_size",
     rna_layer="raw_counts",
     junc_ratio_layer="junc_ratio",
@@ -290,6 +289,47 @@ for label in umap_labels:
     plt.close(fig)
     wandb.log({f"umap_{label}": wandb.Image(fig)})
     print(f"Saved UMAP for '{label}' → {out_path}")
+
+# ------------------------------
+# 8. Compute UMAPs for multiple latent spaces
+# ------------------------------
+print("Computing latent representations and UMAPs...")
+latent_spaces = {
+    "joint":      model.get_latent_representation(),
+    "expression": model.get_latent_representation(modality="expression"),
+    "splicing":   model.get_latent_representation(modality="splicing"),
+}
+
+for space_name, Z in latent_spaces.items():
+    key = f"X_{space_name}"
+    mdata["rna"].obsm[key] = Z
+    sc.pp.neighbors(mdata["rna"], use_rep=key)
+    sc.tl.umap(mdata["rna"], min_dist=0.2)
+    print(f"UMAP computed for: {space_name}")
+
+    for label in umap_labels:
+        if label not in mdata["rna"].obs:
+            print(f"Warning: '{label}' not in mdata.obs—skipping.")
+            continue
+
+        mdata["rna"].obs[label] = mdata["rna"].obs[label].astype("category")
+        palette = sns.color_palette("hsv", len(mdata["rna"].obs[label].cat.categories))
+        fig = sc.pl.umap(
+            mdata["rna"],
+            color=label,
+            palette=palette,
+            legend_loc="right margin",
+            show=False,
+            return_fig=True,
+        )
+
+        filename = f"umap_{label}_{space_name}_latent{model_kwargs.get('n_latent', init_defaults.get('n_latent'))}.png"
+        out_path = os.path.join(FIGURE_OUTPUT_DIR, filename)
+        fig.savefig(out_path, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        wandb.log({f"{space_name}_umap_{label}": wandb.Image(out_path)})
+        print(f"Saved UMAP for '{label}' in space '{space_name}' → {out_path}")
+
 
 # ------------------------------
 # 10. Finish
