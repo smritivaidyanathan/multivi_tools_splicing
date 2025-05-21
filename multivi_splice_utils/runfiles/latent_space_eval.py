@@ -101,23 +101,56 @@ logger = logging.getLogger(__name__)
 
 def plot_umap(adata, rep_name, variable_name, out_dir, num_groups=None):
     logger.info(f"UMAP: {rep_name}, colored by {variable_name}")
-    if num_groups:
-        top = adata.obs[variable_name].value_counts().head(num_groups).index.tolist()
-    else:
-        top = adata.obs[variable_name].unique().tolist()
-    adata.obs['group_highlighted'] = np.where(
-        adata.obs[variable_name].isin(top), adata.obs[variable_name], 'Other'
-    )
-    cmap = cm.get_cmap('tab20', len(top))
-    colors = {grp: cmap(i) for i, grp in enumerate(top)}
-    colors['Other'] = (0.9,0.9,0.9,1.0)
+    # make neighbors + UMAP once
     sc.pp.neighbors(adata, use_rep='X', n_neighbors=UMAP_N_NEIGHBORS)
     sc.tl.umap(adata, min_dist=0.1)
-    fig = sc.pl.umap(
-        adata, color='group_highlighted', palette=colors,
-        show=False, frameon=True, legend_loc='right margin', return_fig=True
-    )
-    fname = f"umap_{MODEL_NAME}_{rep_name}_{variable_name}_top{num_groups or 'all'}.png"
+
+    if num_groups is not None:
+        # categorical mode
+        top = (
+            adata.obs[variable_name]
+            .value_counts()
+            .head(num_groups)
+            .index
+            .tolist()
+            if num_groups
+            else adata.obs[variable_name].unique().tolist()
+        )
+        # highlight only the top groups, everything else as "Other"
+        adata.obs['group_highlighted'] = np.where(
+            adata.obs[variable_name].isin(top),
+            adata.obs[variable_name].astype(str),
+            'Other',
+        )
+        # build a discrete palette
+        cmap_mod = cm.get_cmap('tab20', len(top))
+        colors = {grp: cmap_mod(i) for i, grp in enumerate(top)}
+        colors['Other'] = (0.9, 0.9, 0.9, 1.0)
+        # plot
+        fig = sc.pl.umap(
+            adata,
+            color='group_highlighted',
+            palette=colors,
+            show=False,
+            frameon=True,
+            legend_loc='right margin',
+            return_fig=True,
+        )
+        fname = f"umap_{MODEL_NAME}_{rep_name}_{variable_name}_top{num_groups}.png"
+
+    else:
+        # continuous mode
+        fig = sc.pl.umap(
+            adata,
+            color=variable_name,
+            cmap='viridis',
+            show=False,
+            frameon=True,
+            legend_loc='right margin',
+            return_fig=True,
+        )
+        fname = f"umap_{MODEL_NAME}_{rep_name}_{variable_name}_continuous.png"
+
     fig.savefig(os.path.join(out_dir, fname), dpi=300, bbox_inches='tight')
     plt.close(fig)
 
@@ -211,19 +244,130 @@ for ct in valid_ct:
                                 ('f1',lambda a,p:f1_score(a,p,average='weighted',zero_division=0))]:
                 records_sub.append({'model':MODEL_NAME,'cell_type':ct,'rep':rep,'k':k,'metric':mname,'value':func(lab1,pred)})
             if ct in TARGET_CELL_TYPES:
-                cm = confusion_matrix(lab1, pred)
+                conf_mat = confusion_matrix(lab1, pred)
                 fig,ax=plt.subplots(figsize=(4,4))
-                ConfusionMatrixDisplay(cm).plot(ax=ax, cmap='Blues', colorbar=False)
+                ConfusionMatrixDisplay(conf_mat).plot(ax=ax, cmap='Blues', colorbar=False)
                 um_dir = os.path.join(SUBCLUSTER_DIR,'figures','umaps')
                 cm_dir = os.path.join(SUBCLUSTER_DIR,'figures','confusion_matrices')
-                fname = f"{MODEL_NAME}_{ct.replace(' ','_')}_{rep}_k{k}_cm.png"
+                fname = f"{MODEL_NAME}_{ct.replace(' ','_')}_{rep}_k{k}_conf_mat.png"
                 fig.savefig(os.path.join(cm_dir,fname), dpi=300, bbox_inches='tight'); plt.close(fig)
                 plot_subcluster_umap(Z[idx1], lab1, pred,
                                      f"{ct.replace(' ','_')}_{rep}_k{k}",
                                      um_dir)
+        # ─── random‐baseline modality ───────────────────────────────
+        # generate a random latent space with the same shape as Z_joint
+        rng   = np.random.default_rng(RANDOM_SEED)
+        Zrand = rng.standard_normal(Z_joint.shape)
+
+        # fit & predict exactly as you do for each real modality
+        clf  = LogisticRegression(max_iter=200, random_state=RANDOM_SEED)
+        clf.fit(Zrand[idx2], lab2)
+        pred = clf.predict(Zrand[idx1])
+
+        # record all four metrics under rep="random"
+        for mname, func in [
+            ('accuracy',  lambda a,p: (p==a).mean()),
+            ('precision', lambda a,p: precision_score(a,p,average='weighted',zero_division=0)),
+            ('recall',    lambda a,p: recall_score(a,p,average='weighted',zero_division=0)),
+            ('f1',        lambda a,p: f1_score(a,p,average='weighted',zero_division=0)),
+        ]:
+            records_sub.append({
+                'model':     MODEL_NAME,
+                'cell_type': ct,
+                'rep':       'random',
+                'k':         k,
+                'metric':    mname,
+                'value':     func(lab1, pred),
+            })
+
+        # if you also want confusion matrices for the random baseline:
+        if ct in TARGET_CELL_TYPES:
+            conf_mat   = confusion_matrix(lab1, pred)
+            fig, ax = plt.subplots(figsize=(4,4))
+            ConfusionMatrixDisplay(conf_mat).plot(ax=ax, cmap='Blues', colorbar=False)
+            fname = f"{MODEL_NAME}_{ct.replace(' ','_')}_random_k{k}_cm.png"
+            fig.savefig(os.path.join(cm_dir, fname), dpi=300, bbox_inches='tight')
+            plt.close(fig)
+            # and (optionally) a UMAP of Zrand vs. lab1/pred:
+            plot_subcluster_umap(
+                Zrand[idx1], lab1, pred,
+                f"{ct.replace(' ','_')}_random_k{k}",
+                um_dir
+            )
+        # ─────────────────────────────────────────────────────────────
 
 _df_sub = pd.DataFrame.from_records(records_sub)
 _df_sub.to_csv(os.path.join(SUBCLUSTER_DIR,'csv_files','subcluster_metrics.csv'), index=False)
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Plot per‐model line charts including random baseline
+# ───────────────────────────────────────────────────────────────────────────────
+import seaborn as sns
+
+metrics    = ["accuracy","precision","recall","f1"]
+# rep holds your modalities plus the 'random' baseline
+modalities = list(groups.keys()) + ["random"]
+colors     = dict(
+    joint      = sns.color_palette("tab10")[0],
+    expression = sns.color_palette("tab10")[1],
+    splicing   = sns.color_palette("tab10")[2],
+    random     = "gray",
+)
+linestyles = dict(
+    joint      = "-",
+    expression = "-",
+    splicing   = "-",
+    random     = ":",
+)
+
+# since you only have one model:
+df_plot = _df_sub[_df_sub.model == MODEL_NAME]
+
+fig, axes = plt.subplots(2,2,figsize=(10,8), sharex=True)
+axes = axes.flatten()
+for ax, metric in zip(axes, metrics):
+    for mod in modalities:
+        sub = (
+            df_plot
+            [(df_plot.metric==metric)&(df_plot.rep==mod)]
+            .groupby("k")["value"]
+            .agg(["mean","std"])
+            .sort_index()
+        )
+        if sub.empty: 
+            continue
+        ax.errorbar(
+            sub.index, sub["mean"], yerr=sub["std"],
+            label = mod if mod!="random" else "random baseline",
+            color = colors.get(mod),
+            linestyle = linestyles.get(mod),
+            marker="o",
+            capsize=4,
+        )
+    ax.set_title(metric.capitalize())
+    ax.set_xlabel("k")
+    ax.set_ylabel(metric.capitalize())
+    ax.set_xticks(sorted(df_plot.k.unique()))
+
+# shared legend on the right
+handles, labels = axes[0].get_legend_handles_labels()
+fig.legend(
+    handles, labels,
+    title="Modality / Baseline",
+    loc="center right",
+    bbox_to_anchor=(0.98, 0.5),
+)
+
+plt.tight_layout(rect=[0,0,0.85,1.0])
+
+LINEPLOT_FIG_DIR = os.path.join(SUBCLUSTER_DIR, "figures", "line_plots")
+
+out = os.path.join(LINEPLOT_FIG_DIR, f"subcluster_{MODEL_NAME}.png")
+fig.savefig(out, dpi=300)
+plt.close(fig)
+print("  wrote", out)
+# ───────────────────────────────────────────────────────────────────────────────
+
 logger.info("[Subcluster] Done")
 
 # ----------------------------------------------------------------------------
@@ -256,11 +400,11 @@ for rep, Z in groups.items():
                         'precision':precision_score(yte,pred,average='macro',zero_division=0),
                         'recall':recall_score(yte,pred,average='macro',zero_division=0),
                         'f1':f1_score(yte,pred,average='macro',zero_division=0)})
-    cm = confusion_matrix(yte, pred, labels=range(TOP_N_CELLTYPES))
+    conf_mat = confusion_matrix(yte, pred, labels=range(TOP_N_CELLTYPES))
     fig,ax=plt.subplots(figsize=(5,5))
-    ConfusionMatrixDisplay(cm, display_labels=y.cat.categories[:TOP_N_CELLTYPES]).plot(ax=ax, cmap='Blues', colorbar=False)
-    fname = f"cm_{MODEL_NAME}_{rep}.png"
-    fig.savefig(os.path.join(CLASSIF_DIR,'confusion_matrices',fname), dpi=300, bbox_inches='tight'); plt.close(fig)
+    ConfusionMatrixDisplay(conf_mat, display_labels=y.cat.categories[:TOP_N_CELLTYPES]).plot(ax=ax, cmap='Blues', colorbar=False)
+    fname = f"conf_mat_{MODEL_NAME}_{rep}.png"
+    fig.savefig(os.path.join(CLASSIF_DIR,'figures',fname), dpi=300, bbox_inches='tight'); plt.close(fig)
 _df_cls=pd.DataFrame.from_records(records_cls)
 _df_cls.to_csv(os.path.join(CLASSIF_DIR,'csv_files','cell_type_classification.csv'), index=False)
 # barplots

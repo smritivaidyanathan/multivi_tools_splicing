@@ -195,6 +195,7 @@ print(mdata)
 
 scvi.model.MULTIVISPLICE.setup_mudata(
     mdata,
+    batch_key = "dataset",
     size_factor_key="X_library_size",
     rna_layer="raw_counts",
     junc_ratio_layer="junc_ratio",

@@ -2,7 +2,7 @@
 #SBATCH --job-name=LatentSpaceEval
 #SBATCH --output=/gpfs/commons/home/svaidyanathan/latent_space_eval_runs/slurm_%j.out
 #SBATCH --error=/gpfs/commons/home/svaidyanathan/latent_space_eval_runs/slurm_%j.err
-#SBATCH --mem=200G
+#SBATCH --mem=150G
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --time=12:00:00

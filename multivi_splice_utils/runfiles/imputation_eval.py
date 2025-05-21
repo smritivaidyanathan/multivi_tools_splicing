@@ -29,19 +29,18 @@ FIG_DIR = os.path.join(IMPUTATION_EVAL_OUTDIR, "figures")
 os.makedirs(FIG_DIR, exist_ok=True)
 CSV_OUT = os.path.join(IMPUTATION_EVAL_OUTDIR, "imputation_results.csv")
 
-MUDATA_PATH = (
-    "/gpfs/commons/groups/knowles_lab/Karin/"
-    "Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/"
-    "MODEL_INPUT/052025/aligned__ge_splice_combined_20250513_035938.h5mu"
-)
+MUDATA_PATH = ("/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu")
 
 UMAP_GROUP = "broad_cell_type"
-MISSING_PCT_PAIRS = [(0.0, 0.2), (0.0, 0.3), (0.2, 0.0), (0.3, 0.0 ), (0.2, 0.2), (0.3, 0.3)]
+MISSING_PCT_PAIRS = [(0.0, 0.2), (0.2, 0.0), (0.2, 0.2)]
 SEED = 42
 
 # ------------------------------------------------------------------------------
 # Utilities: corrupt & evaluate
 # ------------------------------------------------------------------------------
+import numpy as np
+from scipy import sparse
+
 def corrupt_mudata_inplace(mdata, pct_rna, pct_splice, seed):
     print(f"  → corrupt_mudata_inplace(pct_rna={pct_rna}, pct_splice={pct_splice}) start", flush=True)
     rng = np.random.default_rng(seed)
@@ -53,16 +52,27 @@ def corrupt_mudata_inplace(mdata, pct_rna, pct_splice, seed):
         X_csr = mdata['rna'].layers['raw_counts']
         if not sparse.isspmatrix_csr(X_csr):
             X_csr = X_csr.tocsr()
+
+        # pick random nonzero entries
         rows, cols = X_csr.nonzero()
+        data = X_csr.data
         nnz = len(rows)
         nrm = int(nnz * pct_rna)
         idx = rng.choice(nnz, nrm, replace=False)
-        coords = np.stack([rows[idx], cols[idx]], axis=1)
-        vals = X_csr[coords[:,0], coords[:,1]].A1
-        X_lil = X_csr.tolil()
-        X_lil[coords[:,0], coords[:,1]] = 0
-        mdata['rna'].layers['raw_counts'] = X_lil.tocsr()
-        orig['rna'] = (coords, vals)
+        mask_rows, mask_cols = rows[idx], cols[idx]
+        coords = np.stack([mask_rows, mask_cols], axis=1)
+        orig_vals = data[idx]
+
+        # build a sparse mask and zero out in one shot
+        mask_mat = sparse.coo_matrix(
+            (np.ones(nrm, dtype=X_csr.dtype), (mask_rows, mask_cols)),
+            shape=X_csr.shape
+        ).tocsr()
+        X_csr = X_csr.multiply(1 - mask_mat)
+
+        # write back
+        mdata['rna'].layers['raw_counts'] = X_csr
+        orig['rna'] = (coords, orig_vals)
         print(f"      masked {nrm} RNA entries", flush=True)
 
     # --- Splicing masking (in place) ---
@@ -76,12 +86,14 @@ def corrupt_mudata_inplace(mdata, pct_rna, pct_splice, seed):
         if not sparse.isspmatrix_csr(J_csr):
             J_csr = J_csr.tocsr()
         R_layer = mdata[sp_mod].layers['junc_ratio']
+        if sparse.isspmatrix(R_layer):
+            R_csr = R_layer.tocsr()
 
+        # gather valid nonzeros
         rows, cols = A_csr.nonzero()
         data = A_csr.data
         j_vals = J_csr[rows, cols].A1
         if sparse.isspmatrix(R_layer):
-            R_csr = R_layer.tocsr()
             r_vals = R_csr[rows, cols].A1
         else:
             r_vals = R_layer[rows, cols]
@@ -93,25 +105,27 @@ def corrupt_mudata_inplace(mdata, pct_rna, pct_splice, seed):
         nnz_all = len(rows)
         nrm = int(nnz_all * pct_splice)
         idx2 = rng.choice(nnz_all, nrm, replace=False)
-        coords = np.stack([rows[idx2], cols[idx2]], axis=1)
+        mask_rows, mask_cols = rows[idx2], cols[idx2]
+        coords = np.stack([mask_rows, mask_cols], axis=1)
         orig_vals = np.vstack([data[idx2], j_vals[idx2], r_vals[idx2]]).T
 
-        A_lil = A_csr.tolil()
-        J_lil = J_csr.tolil()
+        # build mask and apply
+        mask_mat = sparse.coo_matrix(
+            (np.ones(nrm, dtype=A_csr.dtype), (mask_rows, mask_cols)),
+            shape=A_csr.shape
+        ).tocsr()
+        A_csr = A_csr.multiply(1 - mask_mat)
+        J_csr = J_csr.multiply(1 - mask_mat)
         if sparse.isspmatrix(R_layer):
-            R_lil = R_csr.tolil()
-        for r, c in coords:
-            A_lil[r, c] = 0
-            J_lil[r, c] = 0
-            if sparse.isspmatrix(R_layer):
-                R_lil[r, c] = 0
-            else:
-                R_layer[r, c] = 0
+            R_csr = R_csr.multiply(1 - mask_mat)
+        else:
+            R_layer[mask_rows, mask_cols] = 0
 
-        mdata[sp_mod].layers['cell_by_cluster_matrix'] = A_lil.tocsr()
-        mdata[sp_mod].layers['cell_by_junction_matrix'] = J_lil.tocsr()
+        # write back
+        mdata[sp_mod].layers['cell_by_cluster_matrix'] = A_csr
+        mdata[sp_mod].layers['cell_by_junction_matrix'] = J_csr
         if sparse.isspmatrix(R_layer):
-            mdata[sp_mod].layers['junc_ratio'] = R_lil.tocsr()
+            mdata[sp_mod].layers['junc_ratio'] = R_csr
         else:
             mdata[sp_mod].layers['junc_ratio'] = R_layer
 
@@ -131,6 +145,7 @@ def corrupt_mudata_inplace(mdata, pct_rna, pct_splice, seed):
 
     print("  → corrupt_mudata_inplace done", flush=True)
     return orig
+
 
 
 def evaluate_imputation(original, imputed):
@@ -221,14 +236,17 @@ def main():
             print(f"  * Training {name} …", flush=True)
             model = setup_fn(mdata)
             print("    - calling model.train()", flush=True)
+            model.view_anndata_setup()
             model.train(max_epochs=5, batch_size = 256)
             print("    - training complete", flush=True)
 
             print("    - computing imputation…", flush=True)
             expr = model.get_normalized_expression(return_numpy=True)
             lib  = model.get_library_size_factors()['expression']
+
+            print(lib[:, None])
             # compute
-            imp_expr = expr * lib[:, None]
+            imp_expr = expr 
             imp_spl  = model.get_normalized_splicing(return_numpy=True)
 
             # set numpy print options if you like

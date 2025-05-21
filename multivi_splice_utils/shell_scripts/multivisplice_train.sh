@@ -42,8 +42,8 @@ LATENT_DIM=40                     # --n_latent (default: None = √n_hidden)
 # FULLY_PAIRED="false"           # --fully_paired (default: false)
 
 # Optional hyperparams for TRAINING (uncomment to override; defaults in parentheses):
-#MAX_EPOCHS=50                   # --max_epochs (default: 500)
-# LR=1e-4                          # --lr (default: 1e-4)
+MAX_EPOCHS=20                   # --max_epochs (default: 500)
+LR=1e-5                          # --lr (default: 1e-4)
 # ACCELERATOR="auto"             # --accelerator (default: "auto")
 # DEVICES="auto"                 # --devices (default: "auto")
 # TRAIN_SIZE="None"              # --train_size (default: None)
