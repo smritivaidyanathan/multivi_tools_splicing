@@ -127,19 +127,24 @@ def plot_umap(adata, rep_name, variable_name, out_dir, num_groups=None):
         colors = {grp: cmap_mod(i) for i, grp in enumerate(top)}
         colors['Other'] = (0.9, 0.9, 0.9, 1.0)
         # plot
+        plt.figure(figsize=(8, 5))
         fig = sc.pl.umap(
             adata,
             color='group_highlighted',
             palette=colors,
             show=False,
             frameon=True,
+            legend_fontsize=10,
             legend_loc='right margin',
             return_fig=True,
         )
+        plt.title(f'UMAP by {variable_name} (Top {num_groups} Highlighted)')
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
         fname = f"umap_{MODEL_NAME}_{rep_name}_{variable_name}_top{num_groups}.png"
 
     else:
         # continuous mode
+        plt.figure(figsize=(8, 5))
         fig = sc.pl.umap(
             adata,
             color=variable_name,
@@ -147,27 +152,43 @@ def plot_umap(adata, rep_name, variable_name, out_dir, num_groups=None):
             show=False,
             frameon=True,
             legend_loc='right margin',
+            legend_fontsize=10,
             return_fig=True,
         )
+        plt.title(f'UMAP by {variable_name}')
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
         fname = f"umap_{MODEL_NAME}_{rep_name}_{variable_name}_continuous.png"
 
     fig.savefig(os.path.join(out_dir, fname), dpi=300, bbox_inches='tight')
     plt.close(fig)
 
 
-def plot_subcluster_umap(latent, true_labels, pred_labels, out_prefix, fig_dir,
+def plot_subcluster_umap(latent, true_labels, pred_labels_dict, out_prefix, fig_dir,
                          n_neighbors=UMAP_N_NEIGHBORS, min_dist=0.1):
+    # build AnnData once
     ad = sc.AnnData(latent)
     ad.obsm['X_latent'] = latent
     ad.obs['true'] = true_labels.astype(str)
-    ad.obs['pred'] = pred_labels.astype(str)
+
+    # compute UMAP embedding
     sc.pp.neighbors(ad, use_rep='X_latent', n_neighbors=n_neighbors)
     sc.tl.umap(ad, min_dist=min_dist)
-    for label_type in ['true','pred']:
+
+    # plot the “true” labels
+    fig, ax = plt.subplots(figsize=(4,4))
+    sc.pl.umap(ad, color='true', ax=ax, show=False, frameon=True, legend_loc=None)
+    ax.set_title(f"{MODEL_NAME} {out_prefix} — true labels")
+    fname = f"{MODEL_NAME}_{out_prefix}_true_umap.png"
+    fig.savefig(os.path.join(fig_dir, fname), dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
+    # now add one obs‐column + plot per modality
+    for modality, labels in pred_labels_dict.items():
+        ad.obs[modality] = labels.astype(str)
         fig, ax = plt.subplots(figsize=(4,4))
-        sc.pl.umap(ad, color=label_type, ax=ax, show=False, legend_loc=None)
-        ax.set_title(f"{MODEL_NAME} {out_prefix} — {label_type}")
-        fname = f"{MODEL_NAME}_{out_prefix}_{label_type}_umap.png"
+        sc.pl.umap(ad, color=modality, ax=ax, show=False, frameon=True, legend_loc=None)
+        ax.set_title(f"{MODEL_NAME} {out_prefix} — {modality} predicted labels")
+        fname = f"{MODEL_NAME}_{out_prefix}_{modality}_umap.png"
         fig.savefig(os.path.join(fig_dir, fname), dpi=300, bbox_inches='tight')
         plt.close(fig)
 
@@ -231,13 +252,18 @@ for ct in valid_ct:
     idx1 = np.isin(mdata.obs_names, cells[:half])
     idx2 = np.isin(mdata.obs_names, cells[half:])
     for k in CLUSTER_NUMBERS:
+        um_dir = os.path.join(SUBCLUSTER_DIR,'figures','umaps')
+        cm_dir = os.path.join(SUBCLUSTER_DIR,'figures','confusion_matrices')
         km = KMeans(n_clusters=k, random_state=RANDOM_SEED)
         lab1 = km.fit_predict(Z_joint[idx1])
         lab2 = km.predict(Z_joint[idx2])
+        # dictionary to hold every modality’s predictions
+        preds = {}
         for rep, Z in groups.items():
             clf = LogisticRegression(max_iter=200, random_state=RANDOM_SEED)
             clf.fit(Z[idx2], lab2)
             pred = clf.predict(Z[idx1])
+            preds[rep] = pred
             for mname, func in [('accuracy',lambda a,p:(p==a).mean()),
                                 ('precision',lambda a,p:precision_score(a,p,average='weighted',zero_division=0)),
                                 ('recall',lambda a,p:recall_score(a,p,average='weighted',zero_division=0)),
@@ -247,13 +273,8 @@ for ct in valid_ct:
                 conf_mat = confusion_matrix(lab1, pred)
                 fig,ax=plt.subplots(figsize=(4,4))
                 ConfusionMatrixDisplay(conf_mat).plot(ax=ax, cmap='Blues', colorbar=False)
-                um_dir = os.path.join(SUBCLUSTER_DIR,'figures','umaps')
-                cm_dir = os.path.join(SUBCLUSTER_DIR,'figures','confusion_matrices')
                 fname = f"{MODEL_NAME}_{ct.replace(' ','_')}_{rep}_k{k}_conf_mat.png"
                 fig.savefig(os.path.join(cm_dir,fname), dpi=300, bbox_inches='tight'); plt.close(fig)
-                plot_subcluster_umap(Z[idx1], lab1, pred,
-                                     f"{ct.replace(' ','_')}_{rep}_k{k}",
-                                     um_dir)
         # ─── random‐baseline modality ───────────────────────────────
         # generate a random latent space with the same shape as Z_joint
         rng   = np.random.default_rng(RANDOM_SEED)
@@ -263,6 +284,7 @@ for ct in valid_ct:
         clf  = LogisticRegression(max_iter=200, random_state=RANDOM_SEED)
         clf.fit(Zrand[idx2], lab2)
         pred = clf.predict(Zrand[idx1])
+        preds['random'] = pred
 
         # record all four metrics under rep="random"
         for mname, func in [
@@ -288,12 +310,15 @@ for ct in valid_ct:
             fname = f"{MODEL_NAME}_{ct.replace(' ','_')}_random_k{k}_cm.png"
             fig.savefig(os.path.join(cm_dir, fname), dpi=300, bbox_inches='tight')
             plt.close(fig)
-            # and (optionally) a UMAP of Zrand vs. lab1/pred:
+            # —— now plot all UMAPs at once for Z_joint, if this cell type is one you care about:
             plot_subcluster_umap(
-                Zrand[idx1], lab1, pred,
-                f"{ct.replace(' ','_')}_random_k{k}",
+                Z_joint[idx1],
+                lab1,
+                preds,
+                f"{ct.replace(' ', '_')}_k{k}",
                 um_dir
             )
+            logger.info(f"Saved UMAPs to {um_dir} for k={k}, ct={ct}")
         # ─────────────────────────────────────────────────────────────
 
 _df_sub = pd.DataFrame.from_records(records_sub)
@@ -377,43 +402,105 @@ logger.info("[Subcluster] Done")
 # to predict broad cell type labels across all cells, reporting per-type
 # and overall accuracy, precision, recall, and F1. Confusion matrices are also saved.
 
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# set plotting defaults
+sns.set_style("whitegrid")
+sns.set_context("talk")
+
 logger.info("[Classification] Starting multiclass classification...")
 y = mdata['rna'].obs[CELL_TYPE_COLUMN].astype('category')
 labels_all = y.cat.codes.values
-records_cls=[]
+records_cls = []
+
 for rep, Z in groups.items():
-    Xtr, Xte, ytr, yte = train_test_split(Z, labels_all,
-                                         stratify=labels_all, test_size=0.2,
-                                         random_state=RANDOM_SEED)
-    clf = LogisticRegression(max_iter=200, random_state=RANDOM_SEED).fit(Xtr, ytr)
-    pred = clf.predict(Xte)
+    # stratified split
+    X_train, X_test, y_train, y_test = train_test_split(
+        Z,
+        labels_all,
+        test_size=0.2,
+        stratify=labels_all,
+        random_state=RANDOM_SEED,
+    )
+
+    # unified LogisticRegression protocol
+    clf = LogisticRegression(
+        max_iter=500,
+        multi_class='ovr',
+        solver='lbfgs',
+        C=1.0,
+        penalty='l2',
+        random_state=RANDOM_SEED
+    ).fit(X_train, y_train)
+
+    # predict & record metrics
+    y_pred = clf.predict(X_test)
     for idx, ct in enumerate(y.cat.categories):
-        mask_ct = (yte==idx)
-        if mask_ct.sum()>0:
-            records_cls.append({'model':MODEL_NAME,'rep':rep,'cell_type':ct,
-                                'accuracy':accuracy_score(yte[mask_ct],pred[mask_ct]),
-                                'precision':precision_score(yte[mask_ct],pred[mask_ct],average='macro',zero_division=0),
-                                'recall':recall_score(yte[mask_ct],pred[mask_ct],average='macro',zero_division=0),
-                                'f1':f1_score(yte[mask_ct],pred[mask_ct],average='macro',zero_division=0)})
-    records_cls.append({'model':MODEL_NAME,'rep':rep,'cell_type':'ALL',
-                        'accuracy':accuracy_score(yte,pred),
-                        'precision':precision_score(yte,pred,average='macro',zero_division=0),
-                        'recall':recall_score(yte,pred,average='macro',zero_division=0),
-                        'f1':f1_score(yte,pred,average='macro',zero_division=0)})
-    conf_mat = confusion_matrix(yte, pred, labels=range(TOP_N_CELLTYPES))
-    fig,ax=plt.subplots(figsize=(5,5))
-    ConfusionMatrixDisplay(conf_mat, display_labels=y.cat.categories[:TOP_N_CELLTYPES]).plot(ax=ax, cmap='Blues', colorbar=False)
+        mask_ct = (y_test == idx)
+        if mask_ct.sum() > 0:
+            records_cls.append({
+                'model':     MODEL_NAME,
+                'rep':       rep,
+                'cell_type': ct,
+                'accuracy':  accuracy_score(y_test[mask_ct],  y_pred[mask_ct]),
+                'precision': precision_score(y_test[mask_ct], y_pred[mask_ct],
+                                             average='macro', zero_division=0),
+                'recall':    recall_score(y_test[mask_ct],    y_pred[mask_ct],
+                                          average='macro', zero_division=0),
+                'f1':        f1_score(y_test[mask_ct],        y_pred[mask_ct],
+                                      average='macro', zero_division=0),
+            })
+
+    # overall metrics
+    records_cls.append({
+        'model':     MODEL_NAME,
+        'rep':       rep,
+        'cell_type': 'ALL',
+        'accuracy':  accuracy_score(y_test, y_pred),
+        'precision': precision_score(y_test, y_pred, average='macro', zero_division=0),
+        'recall':    recall_score(y_test, y_pred, average='macro', zero_division=0),
+        'f1':        f1_score(y_test, y_pred, average='macro', zero_division=0),
+    })
+
+    # confusion matrix
+    cm = confusion_matrix(y_test, y_pred, labels=range(TOP_N_CELLTYPES))
+    disp = ConfusionMatrixDisplay(cm,
+        display_labels=y.cat.categories[:TOP_N_CELLTYPES]
+    )
+    fig, ax = plt.subplots(figsize=(8,8))
+    disp.plot(ax=ax, cmap='Blues', colorbar=False)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=90, ha='center')
+    fig.tight_layout()
     fname = f"conf_mat_{MODEL_NAME}_{rep}.png"
-    fig.savefig(os.path.join(CLASSIF_DIR,'figures',fname), dpi=300, bbox_inches='tight'); plt.close(fig)
-_df_cls=pd.DataFrame.from_records(records_cls)
-_df_cls.to_csv(os.path.join(CLASSIF_DIR,'csv_files','cell_type_classification.csv'), index=False)
+    fig.savefig(os.path.join(CLASSIF_DIR, 'figures', fname),
+                dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
+_df_cls = pd.DataFrame.from_records(records_cls)
+_df_cls.to_csv(os.path.join(CLASSIF_DIR, 'csv_files',
+                            'cell_type_classification.csv'),
+               index=False)
+
 # barplots
-for m in ['accuracy','precision','recall','f1']:
-    fig,ax=plt.subplots(figsize=(6,4))
-    sns.barplot(data=_df_cls[_df_cls.cell_type!='ALL'], x='cell_type', y=m, hue='rep', ax=ax)
-    plt.xticks(rotation=45, ha='right'); fig.tight_layout()
-    fig.savefig(os.path.join(CLASSIF_DIR,'figures',f'{m}_bar.png'), dpi=300); plt.close(fig)
+for metric in ['accuracy','precision','recall','f1']:
+    fig, ax = plt.subplots(figsize=(14,6))
+    sns.barplot(
+        data=_df_cls[_df_cls.cell_type!='ALL'],
+        x='cell_type', y=metric, hue='rep', ax=ax
+    )
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+    fig.tight_layout()
+    fname = f'{metric}_bar.png'
+    fig.savefig(os.path.join(CLASSIF_DIR, 'figures', fname),
+                dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
 logger.info("[Classification] Complete")
+
 
 # ----------------------------------------------------------------------------
 # 4. Local Neighborhood Consistency
@@ -438,6 +525,11 @@ for k in NEIGHBOR_K:
                            'S_AS':len(setj&setas)/k})
 _df_nb=pd.DataFrame.from_records(records_nb)
 _df_nb.to_csv(os.path.join(NEIGHBOR_DIR,'csv_files','neighborhood_overlap.csv'), index=False)
+
+from scipy.stats import spearmanr
+rho, pval = spearmanr(_df_nb['S_GE'], _df_nb['S_AS'])
+logger.info(f"[Neighborhood] Spearman ρ (S_GE vs S_AS): {rho:.3f}, p-value: {pval:.3g}")
+
 # plots
 for sc_score in ['S_GE','S_AS']:
     fig,ax=plt.subplots(); sns.histplot(_df_nb[sc_score], kde=True, ax=ax)

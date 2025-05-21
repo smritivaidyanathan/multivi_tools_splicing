@@ -108,8 +108,8 @@ def plot_imputation_dropoff(csv_path, models_to_plot, outdir):
 
 
 if __name__ == "__main__":
-    CSV  = "/gpfs/commons/home/svaidyanathan/imputation_eval_runs/run_20250518_121234/imputation_results_mock.csv"
-    OUTD = "/gpfs/commons/home/svaidyanathan/imputation_eval_runs/run_20250518_121234/figures"
+    CSV  = "/gpfs/commons/home/svaidyanathan/imputation_eval_runs/run_20250521_090652/imputation_results.csv"
+    OUTD = "/gpfs/commons/home/svaidyanathan/imputation_eval_runs/run_20250521_090652/figures"
     os.makedirs(OUTD, exist_ok=True)
     plot_imputation_dropoff(CSV, [
         "Splice-VI(Binomial Z=20)",

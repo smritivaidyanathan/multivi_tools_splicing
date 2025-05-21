@@ -20,7 +20,7 @@ torch.autograd.set_detect_anomaly(True)
 # ------------------------------
 # 0. Default Paths (can be overridden via CLI)
 # ------------------------------
-DEFAULT_MUDATA_PATH       = "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/aligned__ge_splice_combined_20250513_035938.h5mu"
+DEFAULT_MUDATA_PATH       = "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu"
 DEFAULT_MODEL_SAVE_DIR    = "/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/models/multivisplice"
 DEFAULT_FIGURE_OUTPUT_DIR = "/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/figures"
 
@@ -149,45 +149,46 @@ import numpy as np
 
 mdata = mu.read_h5mu(MUDATA_PATH)
 
-# grab the splicing modality
+# # grab the splicing modality
 splicing = mdata["splicing"]
 
-# 1) load cluster‐ and junction‐counts
-cluster = splicing.layers["cell_by_cluster_matrix"]
-junction = splicing.layers["cell_by_junction_matrix"]
+# # 1) load cluster‐ and junction‐counts
+# cluster = splicing.layers["cell_by_cluster_matrix"]
+# junction = splicing.layers["cell_by_junction_matrix"]
 
-# 2) ensure CSR
-if not sparse.isspmatrix_csr(cluster):
-    cluster = sparse.csr_matrix(cluster)
-if not sparse.isspmatrix_csr(junction):
-    junction = sparse.csr_matrix(junction)
+# # 2) ensure CSR
+# if not sparse.isspmatrix_csr(cluster):
+#     cluster = sparse.csr_matrix(cluster)
+# if not sparse.isspmatrix_csr(junction):
+#     junction = sparse.csr_matrix(junction)
 
-# 3) build psi_mask (1 wherever cluster>0)
-mask = cluster.copy()
-mask.data = np.ones_like(mask.data, dtype=np.uint8)
-splicing.layers["psi_mask"] = mask
+# # 3) build psi_mask (1 wherever cluster>0)
+# mask = cluster.copy()
+# mask.data = np.ones_like(mask.data, dtype=np.uint8)
+# splicing.layers["psi_mask"] = mask
 
-# 4) compute junc_ratio = junction / cluster, nan→0
-#    convert to dense for element‐wise division
-cluster_arr = cluster.toarray()
-junction_arr = junction.toarray()
-junc_ratio = np.divide(
-    junction_arr,
-    cluster_arr,
-    out=np.zeros_like(junction_arr, dtype=float),
-    where=(cluster_arr != 0)
-)
-# 5) assign back (dense array is fine here)
-splicing.layers["junc_ratio"] = junc_ratio
 
-print(junc_ratio)
+# # 4) compute junc_ratio = junction / cluster, nan→0
+# #    convert to dense for element‐wise division
+# cluster_arr = cluster.toarray()
+# junction_arr = junction.toarray()
+# junc_ratio = np.divide(
+#     junction_arr,
+#     cluster_arr,
+#     out=np.zeros_like(junction_arr, dtype=float),
+#     where=(cluster_arr != 0)
+# )
+# # 5) assign back (dense array is fine here)
+# splicing.layers["junc_ratio"] = junc_ratio
+
+print(f"Junction Ratio:" + splicing.layers["junc_ratio"])
 
 print("Now splicing layers:", splicing.layers.keys())
-print(f"Mask: {mask}")
-print(f"junc_ratio shape: {junc_ratio.shape}")
+print(f"Mask: {splicing.layers["psi_mask"]}")
+print(f"junc_ratio shape: {splicing.layers["junc_ratio"].shape}")
 import gc
-del cluster, junction, cluster_arr, junction_arr, mask
-gc.collect()  # give Python a nudge to free the memory
+# del cluster, junction, cluster_arr, junction_arr, mask
+# gc.collect()  # give Python a nudge to free the memory
 
 
 print("MuData modalities loaded:", list(mdata.mod.keys()))
@@ -210,10 +211,16 @@ model = scvi.model.MULTIVISPLICE(
     mdata,
     n_genes=(mdata["rna"].var["modality"] == "Gene_Expression").sum(),
     n_junctions=(mdata["splicing"].var["modality"] == "Splicing").sum(),
-    splicing_architecture="partial",
     **model_kwargs,
 )
 model.view_anndata_setup()
+
+wandb.watch(
+    model.module,          # the torch.nn.Module you want to instrument
+    log="all",             # you can choose "gradients", "parameters", or "all"
+    log_freq=1000,         # how often (in steps) to log
+    log_graph=False        # True if you also want to log the computational graph
+)
 
 # 1) Get the embedding module
 emb_mod = model.module.z_encoder_splicing.feature_embedding

@@ -18,7 +18,7 @@
 # ───────────────────────────────────────────────────────────────────────────
 
 # Required
-MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/aligned__ge_splice_combined_20250513_035938.h5mu"
+MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu"
 
 # Optional hyperparams for MODEL INIT (uncomment to override; defaults in parentheses):
 # N_GENES="None"                 # --n_genes (default: None, inferred from data)
@@ -33,6 +33,8 @@ LATENT_DIM=40                     # --n_latent (default: None = √n_hidden)
 # GENE_LIKELIHOOD="zinb"         # --gene_likelihood (default: "zinb") 
 #SPLICING_LOSS_TYPE="binomial" # --splicing_loss_type (default: "beta_binomial")
 # SPLICING_CONCENTRATION="None"   # --splicing_concentration (default: None)
+SPLICING_ARCHITECTURE="partial"   # --splicing_architecture (default: "vanilla")
+# EXPRESSION_ARCHITECTURE="linear"   # --expression_architecture (default: "vanilla")
 # DISPERSION="gene"              # --dispersion (default: "gene")
 # USE_BATCH_NORM="none"          # --use_batch_norm (default: "none")
 # USE_LAYER_NORM="both"          # --use_layer_norm (default: "both")
@@ -42,7 +44,7 @@ LATENT_DIM=40                     # --n_latent (default: None = √n_hidden)
 # FULLY_PAIRED="false"           # --fully_paired (default: false)
 
 # Optional hyperparams for TRAINING (uncomment to override; defaults in parentheses):
-MAX_EPOCHS=20                   # --max_epochs (default: 500)
+#MAX_EPOCHS=20                   # --max_epochs (default: 500)
 LR=1e-5                          # --lr (default: 1e-4)
 # ACCELERATOR="auto"             # --accelerator (default: "auto")
 # DEVICES="auto"                 # --devices (default: "auto")
@@ -57,7 +59,7 @@ BATCH_SIZE=256                   # --batch_size (default: 128)
 # CHECK_VAL_EVERY_N_EPOCH="None" # --check_val_every_n_epoch (default: None)
 # N_STEPS_KL_WARMUP="None"       # --n_steps_kl_warmup (default: None)
 # N_EPOCHS_KL_WARMUP=50            # --n_epochs_kl_warmup (default: 50)
-ADVERSARIAL_MIXING="false"      # --adversarial_mixing (default: true)
+ADVERSARIAL_MIXING="true"      # --adversarial_mixing (default: true)
 # DATASPLITTER_KWARGS="None"     # --datasplitter_kwargs (default: None)
 # PLAN_KWARGS="None"             # --plan_kwargs (default: None)
 
@@ -109,6 +111,8 @@ args=(
 [ -n "$GENE_LIKELIHOOD" ]    && args+=( --gene_likelihood "$GENE_LIKELIHOOD" )
 [ -n "$SPLICING_LOSS_TYPE" ] && args+=( --splicing_loss_type "$SPLICING_LOSS_TYPE" )
 [ -n "$SPLICING_CONCENTRATION" ] && args+=( --splicing_concentration "$SPLICING_CONCENTRATION" )
+[ -n "$SPLICING_ARCHITECTURE" ] && args+=( --splicing_architecture "$SPLICING_ARCHITECTURE" )
+[ -n "$EXPRESSION_ARCHITECTURE" ] && args+=( --expression_architecture "$EXPRESSION_ARCHITECTURE" )
 [ -n "$DISPERSION" ]         && args+=( --dispersion "$DISPERSION" )
 [ -n "$USE_BATCH_NORM" ]     && args+=( --use_batch_norm "$USE_BATCH_NORM" )
 [ -n "$USE_LAYER_NORM" ]     && args+=( --use_layer_norm "$USE_LAYER_NORM" )

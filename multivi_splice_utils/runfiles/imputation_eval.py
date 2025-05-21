@@ -16,7 +16,7 @@ import mudata as mu
 import scvi
 import scanpy as sc
 from scipy import sparse
-from scipy.stats import spearmanr
+from scipy.stats import spearmanr, linregress
 import matplotlib.pyplot as plt
 
 # ------------------------------------------------------------------------------
@@ -32,7 +32,7 @@ CSV_OUT = os.path.join(IMPUTATION_EVAL_OUTDIR, "imputation_results.csv")
 MUDATA_PATH = ("/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu")
 
 UMAP_GROUP = "broad_cell_type"
-MISSING_PCT_PAIRS = [(0.0, 0.2), (0.2, 0.0), (0.2, 0.2)]
+MISSING_PCT_PAIRS = [(0.0, 0.2), (0.0, 0.5), (0.0, 0.8), (0.2, 0.0), (0.5, 0.0), (0.8, 0.0), (0.2, 0.2), (0.5, 0.5), (0.8, 0.8)]
 SEED = 42
 
 # ------------------------------------------------------------------------------
@@ -41,109 +41,145 @@ SEED = 42
 import numpy as np
 from scipy import sparse
 
-def corrupt_mudata_inplace(mdata, pct_rna, pct_splice, seed):
-    print(f"  → corrupt_mudata_inplace(pct_rna={pct_rna}, pct_splice={pct_splice}) start", flush=True)
-    rng = np.random.default_rng(seed)
+import numpy as np
+import mudata as mu
+from scipy import sparse
+
+import numpy as np
+import mudata as mu
+from scipy import sparse
+
+def plot_real_vs_imputed(x, y, kind):
+    """
+    x, y: 1D arrays of true vs imputed values
+    kind: 'rna' or 'splice' (used for filename and title)
+    """
+    # linear fit
+    slope, intercept, r_value, p_value, _ = linregress(x, y)
+
+    plt.figure()
+    plt.scatter(x, y, alpha=0.5)
+    # best-fit line over the data range
+    x0 = np.array([x.min(), x.max()])
+    plt.plot(x0, intercept + slope * x0, linewidth=2)
+    plt.xlabel("True values")
+    plt.ylabel("Imputed values")
+    plt.title(f"{kind.upper()} real vs imputed\nR={r_value:.2f}, p={p_value:.2e}")
+    out_path = os.path.join(FIG_DIR, f"{kind}_real_vs_imputed.png")
+    plt.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def corrupt_mudata_inplace(
+    mdata: mu.MuData,
+    pct_rna: float = 0.0,
+    pct_splice: float = 0.0,
+    seed: int | None = None,
+) -> dict:
+    """
+    Zero out a fraction of RNA and/or splicing data directly in `mdata`.
+    Returns:
+      - orig: {
+          'rna': (coords, values),
+          'splice': (coords, [[atse, junc, ratio], ...])
+        }
+    """
+    rng  = np.random.default_rng(seed)
     orig = {'rna': None, 'splice': None}
 
-    # --- RNA masking (in place) ---
+    print(f"[corrupt] Starting in-place corruption: pct_rna={pct_rna}, pct_splice={pct_splice}", flush=True)
+
+    # 1) RNA masking in place
     if pct_rna > 0:
-        print("    * RNA masking...", flush=True)
-        X_csr = mdata['rna'].layers['raw_counts']
-        if not sparse.isspmatrix_csr(X_csr):
-            X_csr = X_csr.tocsr()
+        print("  [corrupt] → RNA masking...", flush=True)
+        X   = mdata['rna'].layers['raw_counts']
+        arr = X.toarray() if sparse.isspmatrix(X) else X.copy()
 
-        # pick random nonzero entries
-        rows, cols = X_csr.nonzero()
-        data = X_csr.data
-        nnz = len(rows)
-        nrm = int(nnz * pct_rna)
-        idx = rng.choice(nnz, nrm, replace=False)
-        mask_rows, mask_cols = rows[idx], cols[idx]
-        coords = np.stack([mask_rows, mask_cols], axis=1)
-        orig_vals = data[idx]
+        # find nonzero entries and pick a subset
+        nz       = np.argwhere(arr != 0)
+        n_remove = int(len(nz) * pct_rna)
+        sel      = rng.choice(len(nz), size=n_remove, replace=False)
+        coords   = nz[sel]                       
+        values   = arr[coords[:,0], coords[:,1]].copy()
 
-        # build a sparse mask and zero out in one shot
-        mask_mat = sparse.coo_matrix(
-            (np.ones(nrm, dtype=X_csr.dtype), (mask_rows, mask_cols)),
-            shape=X_csr.shape
-        ).tocsr()
-        X_csr = X_csr.multiply(1 - mask_mat)
+        # zero out those entries
+        arr[coords[:,0], coords[:,1]] = 0
 
-        # write back
-        mdata['rna'].layers['raw_counts'] = X_csr
-        orig['rna'] = (coords, orig_vals)
-        print(f"      masked {nrm} RNA entries", flush=True)
+        # write back (preserve sparse if it was)
+        if sparse.isspmatrix(X):
+            mdata['rna'].layers['raw_counts'] = sparse.csr_matrix(arr)
+        else:
+            mdata['rna'].layers['raw_counts'] = arr
 
-    # --- Splicing masking (in place) ---
+        orig['rna'] = (coords, values)
+        print(f"  [corrupt] ← RNA masking complete: masked {len(coords)} entries", flush=True)
+
+    else:
+        print("  [corrupt] → Skipping RNA masking (pct_rna=0)", flush=True)
+
+    # 2) Splicing masking in place
     if pct_splice > 0:
-        print("    * Splicing masking...", flush=True)
+        print("  [corrupt] → Splicing masking...", flush=True)
         sp_mod = 'splicing'
-        A_csr = mdata[sp_mod].layers['cell_by_cluster_matrix']
-        if not sparse.isspmatrix_csr(A_csr):
-            A_csr = A_csr.tocsr()
-        J_csr = mdata[sp_mod].layers['cell_by_junction_matrix']
-        if not sparse.isspmatrix_csr(J_csr):
-            J_csr = J_csr.tocsr()
-        R_layer = mdata[sp_mod].layers['junc_ratio']
-        if sparse.isspmatrix(R_layer):
-            R_csr = R_layer.tocsr()
+        atse   = mdata[sp_mod].layers['cell_by_cluster_matrix']
+        junc   = mdata[sp_mod].layers['cell_by_junction_matrix']
+        ratio  = mdata[sp_mod].layers['junc_ratio']
 
-        # gather valid nonzeros
-        rows, cols = A_csr.nonzero()
-        data = A_csr.data
-        j_vals = J_csr[rows, cols].A1
-        if sparse.isspmatrix(R_layer):
-            r_vals = R_csr[rows, cols].A1
+        atse_arr = atse.toarray() if sparse.isspmatrix(atse) else atse.copy()
+        junc_arr = junc.toarray() if sparse.isspmatrix(junc) else junc.copy()
+        if sparse.isspmatrix(ratio):
+            ratio_arr = ratio.toarray().astype(float)
         else:
-            r_vals = R_layer[rows, cols]
+            ratio_arr = np.array(ratio, copy=True, dtype=float)
 
-        good = (data > 0) & (j_vals >= 0) & (~np.isnan(r_vals))
-        rows, cols, data, j_vals, r_vals = (
-            rows[good], cols[good], data[good], j_vals[good], r_vals[good]
+        valid    = np.argwhere(
+            (atse_arr > 0) &
+            (junc_arr >= 0) &
+            (~np.isnan(ratio_arr))
         )
-        nnz_all = len(rows)
-        nrm = int(nnz_all * pct_splice)
-        idx2 = rng.choice(nnz_all, nrm, replace=False)
-        mask_rows, mask_cols = rows[idx2], cols[idx2]
-        coords = np.stack([mask_rows, mask_cols], axis=1)
-        orig_vals = np.vstack([data[idx2], j_vals[idx2], r_vals[idx2]]).T
+        n_remove = int(len(valid) * pct_splice)
+        sel      = rng.choice(len(valid), size=n_remove, replace=False)
+        coords   = valid[sel]                       
 
-        # build mask and apply
-        mask_mat = sparse.coo_matrix(
-            (np.ones(nrm, dtype=A_csr.dtype), (mask_rows, mask_cols)),
-            shape=A_csr.shape
-        ).tocsr()
-        A_csr = A_csr.multiply(1 - mask_mat)
-        J_csr = J_csr.multiply(1 - mask_mat)
-        if sparse.isspmatrix(R_layer):
-            R_csr = R_csr.multiply(1 - mask_mat)
-        else:
-            R_layer[mask_rows, mask_cols] = 0
+        orig_vals = np.vstack([
+            atse_arr[coords[:,0], coords[:,1]],
+            junc_arr[coords[:,0], coords[:,1]],
+            ratio_arr[coords[:,0], coords[:,1]],
+        ]).T
+
+        # zero out
+        atse_arr[coords[:,0], coords[:,1]] = 0
+        junc_arr[coords[:,0], coords[:,1]] = 0
+        ratio_arr[coords[:,0], coords[:,1]] = 0
 
         # write back
-        mdata[sp_mod].layers['cell_by_cluster_matrix'] = A_csr
-        mdata[sp_mod].layers['cell_by_junction_matrix'] = J_csr
-        if sparse.isspmatrix(R_layer):
-            mdata[sp_mod].layers['junc_ratio'] = R_csr
-        else:
-            mdata[sp_mod].layers['junc_ratio'] = R_layer
+        mdata[sp_mod].layers['cell_by_cluster_matrix']   = (
+            sparse.csr_matrix(atse_arr) if sparse.isspmatrix(atse) else atse_arr
+        )
+        mdata[sp_mod].layers['cell_by_junction_matrix']  = (
+            sparse.csr_matrix(junc_arr) if sparse.isspmatrix(junc) else junc_arr
+        )
+        mdata[sp_mod].layers['junc_ratio']               = ratio_arr
 
         orig['splice'] = (coords, orig_vals)
-        print(f"      masked {nrm} splicing entries (out of {nnz_all} valid)", flush=True)
+        print(f"  [corrupt] ← Splicing masking complete: masked {len(coords)} entries", flush=True)
 
-    # --- rebuild psi_mask as before ---
-    print("    * rebuilding psi_mask layer", flush=True)
-    clu = mdata['splicing'].layers['cell_by_cluster_matrix']
-    if sparse.isspmatrix_csr(clu):
-        mask = clu.copy()
-        mask.data = np.ones_like(mask.data, dtype=np.uint8)
     else:
-        arr = (clu > 0).astype(np.uint8)
-        mask = sparse.csr_matrix(arr)
-    mdata['splicing'].layers['psi_mask'] = mask
+        print("  [corrupt] → Skipping splicing masking (pct_splice=0)", flush=True)
 
-    print("  → corrupt_mudata_inplace done", flush=True)
+    # 3) Rebuild psi_mask layer
+    print("  [corrupt] → Rebuilding psi_mask layer...", flush=True)
+    clu = mdata['splicing'].layers['cell_by_cluster_matrix']
+    if sparse.isspmatrix(clu):
+        psi = clu.copy()  
+        psi.data = np.ones_like(psi.data, dtype=np.uint8)  
+    else:  
+        arr = (clu > 0).astype(np.uint8)  
+        psi = sparse.csr_matrix(arr)  
+    mdata['splicing'].layers['psi_mask'] = psi
+    print("  [corrupt] ← psi_mask rebuild complete", flush=True)
+
+    print("[corrupt] Done in-place corruption", flush=True)
     return orig
 
 
@@ -152,11 +188,14 @@ def evaluate_imputation(original, imputed):
     print("    * evaluate_imputation...", flush=True)
     coords, vals = original
     pred = imputed[coords[:,0], coords[:,1]]
+    kind = "rna"
     if vals.ndim == 2:
-        atse, true_j, _ = vals.T
+        kind = "splice"
+        atse, true_j, true_r = vals.T
         imp_counts = pred * atse
         diff = imp_counts - true_j
-        x1, x2 = true_j, imp_counts
+        #x1, x2 = true_j, imp_counts
+        x1, x2 = true_r, pred
     else:
         true_c = vals
         diff = pred - true_c
@@ -166,6 +205,7 @@ def evaluate_imputation(original, imputed):
         'median_l1': float(np.median(np.abs(diff))),
         'spearman': float(spearmanr(x1, x2).correlation),
     }
+    plot_real_vs_imputed(x1, x2, kind)
     print(f"      -> eval results {res}", flush=True)
     return res
 
@@ -237,7 +277,7 @@ def main():
             model = setup_fn(mdata)
             print("    - calling model.train()", flush=True)
             model.view_anndata_setup()
-            model.train(max_epochs=5, batch_size = 256)
+            model.train(max_epochs=20, batch_size = 256)
             print("    - training complete", flush=True)
 
             print("    - computing imputation…", flush=True)
@@ -246,24 +286,24 @@ def main():
 
             print(lib[:, None])
             # compute
-            imp_expr = expr 
+            imp_counts = expr * lib[:, None]
             imp_spl  = model.get_normalized_splicing(return_numpy=True)
 
             # set numpy print options if you like
             np.set_printoptions(precision=3, suppress=True)
 
             # choose a small slice: first 5 cells × first 5 features
-            n_cells = min(5, imp_expr.shape[0])
-            n_feats = min(5, imp_expr.shape[1])
+            n_cells = min(5, imp_counts.shape[0])
+            n_feats = min(5, imp_counts.shape[1])
 
             print("Imputed expression (first cells × first genes):")
-            print(imp_expr[:n_cells, :n_feats])
+            print(imp_counts[:n_cells, :n_feats])
 
             print("\nImputed splicing (first cells × first junctions):")
             print(imp_spl[:n_cells, :n_feats])
 
             if orig['rna'] is not None:
-                m_rna = evaluate_imputation(orig['rna'], imp_expr)
+                m_rna = evaluate_imputation(orig['rna'], imp_counts)
             else:
                 m_rna = {'mse': np.nan, 'median_l1': np.nan, 'spearman': np.nan}
             if orig['splice'] is not None:
