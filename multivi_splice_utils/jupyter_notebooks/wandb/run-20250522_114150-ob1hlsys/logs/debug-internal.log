@@ -1,0 +1,7 @@
+{"time":"2025-05-22T11:41:50.935562337-04:00","level":"INFO","msg":"stream: starting","core version":"0.19.7","symlink path":"wandb/run-20250522_114150-ob1hlsys/logs/debug-core.log"}
+{"time":"2025-05-22T11:41:51.042286471-04:00","level":"INFO","msg":"created new stream","id":"ob1hlsys"}
+{"time":"2025-05-22T11:41:51.042354131-04:00","level":"INFO","msg":"stream: started","id":"ob1hlsys"}
+{"time":"2025-05-22T11:41:51.04249756-04:00","level":"INFO","msg":"writer: Do: started","stream_id":"ob1hlsys"}
+{"time":"2025-05-22T11:41:51.04276266-04:00","level":"INFO","msg":"handler: started","stream_id":"ob1hlsys"}
+{"time":"2025-05-22T11:41:51.04280609-04:00","level":"INFO","msg":"sender: started","stream_id":"ob1hlsys"}
+{"time":"2025-05-22T11:41:51.296636307-04:00","level":"INFO","msg":"Starting system monitor"}

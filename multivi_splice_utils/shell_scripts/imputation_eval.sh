@@ -5,7 +5,7 @@
 #SBATCH --mem=300G
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --time=12:00:00
+#SBATCH --time=24:00:00
 
 # === Configuration ===
 BASE_RUN_DIR="/gpfs/commons/home/svaidyanathan/imputation_eval_runs"

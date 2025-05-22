@@ -181,7 +181,7 @@ splicing = mdata["splicing"]
 # # 5) assign back (dense array is fine here)
 # splicing.layers["junc_ratio"] = junc_ratio
 
-print(f"Junction Ratio:" + splicing.layers["junc_ratio"])
+print(f"Junction Ratio: {splicing.layers["junc_ratio"]}")
 
 print("Now splicing layers:", splicing.layers.keys())
 print(f"Mask: {splicing.layers["psi_mask"]}")

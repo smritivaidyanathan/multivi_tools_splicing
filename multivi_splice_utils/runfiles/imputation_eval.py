@@ -32,7 +32,7 @@ CSV_OUT = os.path.join(IMPUTATION_EVAL_OUTDIR, "imputation_results.csv")
 MUDATA_PATH = ("/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu")
 
 UMAP_GROUP = "broad_cell_type"
-MISSING_PCT_PAIRS = [(0.0, 0.2), (0.0, 0.5), (0.0, 0.8), (0.2, 0.0), (0.5, 0.0), (0.8, 0.0), (0.2, 0.2), (0.5, 0.5), (0.8, 0.8)]
+MISSING_PCT_PAIRS = [(0.8, 0.0), (0.2, 0.2), (0.5, 0.5), (0.8, 0.8)]
 SEED = 42
 
 # ------------------------------------------------------------------------------
@@ -49,19 +49,26 @@ import numpy as np
 import mudata as mu
 from scipy import sparse
 
-def plot_real_vs_imputed(x, y, kind):
+def plot_real_vs_imputed(x, y, kind, max_points=10000):
     """
     x, y: 1D arrays of true vs imputed values
     kind: 'rna' or 'splice' (used for filename and title)
     """
+
+    if len(x) > max_points:
+        idx = np.random.choice(len(x), size=max_points, replace=False)
+        x = x[idx]
+        y = y[idx]
     # linear fit
     slope, intercept, r_value, p_value, _ = linregress(x, y)
 
-    plt.figure()
-    plt.scatter(x, y, alpha=0.5)
+    plt.figure(figsize=(6, 6))
+    plt.scatter(x, y, s=5, alpha=0.2, edgecolors='none')  # transparent small points
+
     # best-fit line over the data range
     x0 = np.array([x.min(), x.max()])
-    plt.plot(x0, intercept + slope * x0, linewidth=2)
+    plt.plot(x0, intercept + slope * x0, color='red', linewidth=2.5, zorder=10)
+
     plt.xlabel("True values")
     plt.ylabel("Imputed values")
     plt.title(f"{kind.upper()} real vs imputed\nR={r_value:.2f}, p={p_value:.2e}")
@@ -95,8 +102,8 @@ def corrupt_mudata_inplace(
         X   = mdata['rna'].layers['raw_counts']
         arr = X.toarray() if sparse.isspmatrix(X) else X.copy()
 
-        # find nonzero entries and pick a subset
-        nz       = np.argwhere(arr != 0)
+        # find nonzero entries and pick a subset that have less than 10,000 reads
+        nz = np.argwhere((arr != 0) & (arr < 10000))
         n_remove = int(len(nz) * pct_rna)
         sel      = rng.choice(len(nz), size=n_remove, replace=False)
         coords   = nz[sel]                       
@@ -164,20 +171,22 @@ def corrupt_mudata_inplace(
         orig['splice'] = (coords, orig_vals)
         print(f"  [corrupt] ← Splicing masking complete: masked {len(coords)} entries", flush=True)
 
+        # 3) Rebuild psi_mask layer
+        print("  [corrupt] → Rebuilding psi_mask layer...", flush=True)
+        clu = mdata['splicing'].layers['cell_by_cluster_matrix']
+        if sparse.isspmatrix(clu):
+            psi = clu.copy()  
+            psi.data = np.ones_like(psi.data, dtype=np.uint8)  
+        else:  
+            arr = (clu > 0).astype(np.uint8)  
+            psi = sparse.csr_matrix(arr)  
+        mdata['splicing'].layers['psi_mask'] = psi
+        print("  [corrupt] ← psi_mask rebuild complete", flush=True)
+
     else:
         print("  [corrupt] → Skipping splicing masking (pct_splice=0)", flush=True)
+        print("  [corrupt] → No need to rebuild psi mask.", flush=True)
 
-    # 3) Rebuild psi_mask layer
-    print("  [corrupt] → Rebuilding psi_mask layer...", flush=True)
-    clu = mdata['splicing'].layers['cell_by_cluster_matrix']
-    if sparse.isspmatrix(clu):
-        psi = clu.copy()  
-        psi.data = np.ones_like(psi.data, dtype=np.uint8)  
-    else:  
-        arr = (clu > 0).astype(np.uint8)  
-        psi = sparse.csr_matrix(arr)  
-    mdata['splicing'].layers['psi_mask'] = psi
-    print("  [corrupt] ← psi_mask rebuild complete", flush=True)
 
     print("[corrupt] Done in-place corruption", flush=True)
     return orig
@@ -217,6 +226,7 @@ def define_models():
         scvi.model.MULTIVISPLICE.setup_mudata(
             mdata,
             size_factor_key="X_library_size",
+            batch_key="dataset",
             rna_layer="raw_counts",
             junc_ratio_layer="junc_ratio",
             atse_counts_layer="cell_by_cluster_matrix",
@@ -230,6 +240,7 @@ def define_models():
             n_junctions=(mdata['splicing'].var['modality']=="Splicing").sum(),
             n_latent=latent_dim,
             splicing_architecture = "partial", 
+            expression_architecture = "linear",
             splicing_loss_type=distribution
         )
 
@@ -277,7 +288,7 @@ def main():
             model = setup_fn(mdata)
             print("    - calling model.train()", flush=True)
             model.view_anndata_setup()
-            model.train(max_epochs=20, batch_size = 256)
+            model.train(max_epochs=20, batch_size = 256, n_epochs_kl_warmup = 10, lr_scheduler_type="step", lr_scheduler_step = 5, lr_factor = 0.5)
             print("    - training complete", flush=True)
 
             print("    - computing imputation…", flush=True)
