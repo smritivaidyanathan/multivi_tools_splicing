@@ -18,7 +18,7 @@
 # ───────────────────────────────────────────────────────────────────────────
 
 # Required
-MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu"
+MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/aligned__ge_splice_combined_20250513_035938.h5mu"
 
 # Optional hyperparams for MODEL INIT (uncomment to override; defaults in parentheses):
 # N_GENES="None"                 # --n_genes (default: None, inferred from data)
@@ -45,7 +45,7 @@ EXPRESSION_ARCHITECTURE="linear"   # --expression_architecture (default: "vanill
 
 # Optional hyperparams for TRAINING (uncomment to override; defaults in parentheses):
 #MAX_EPOCHS=20                   # --max_epochs (default: 500)
-LR=1e-3                          # --lr (default: 1e-4)
+LR=1e-3                         # --lr (default: 1e-4)
 # ACCELERATOR="auto"             # --accelerator (default: "auto")
 # DEVICES="auto"                 # --devices (default: "auto")
 # TRAIN_SIZE="None"              # --train_size (default: None)
@@ -61,7 +61,7 @@ EARLY_STOPPING_PATIENCE=10      #--early_stopping_patience (default: 50)
 # N_STEPS_KL_WARMUP="None"       # --n_steps_kl_warmup (default: None)
 N_EPOCHS_KL_WARMUP=20            # --n_epochs_kl_warmup (default: 50)
 ADVERSARIAL_MIXING="true"      # --adversarial_mixing (default: true)
-STEP_SIZE=5                     # --step_size (default: 10)
+STEP_SIZE=5                    # --step_size (default: 10)
 LR_SCHEDULER_TYPE="step"      # --lr_scheduler_type (default: "plateau")
 #REDUCE_LR_ON_PLATEAU="false"     # --reduce_lr_on_plateau (default: false)
 LR_FACTOR=0.5                    # --lr_factor (default: 0.6)

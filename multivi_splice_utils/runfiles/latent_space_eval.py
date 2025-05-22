@@ -64,10 +64,10 @@ random.seed(RANDOM_SEED)
 # Path to the MuData and the single model
 MUDATA_PATH = os.environ.get(
     "MUDATA_PATH",
-    "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/aligned__ge_splice_combined_20250513_035938.h5mu"
+    "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu"
 )
-MODEL_NAME = "SpliceVI_Mockup"
-MODEL_PATH = "/gpfs/commons/home/svaidyanathan/multi_vi_splice_runs/MultiVISpliceTraining_20250515_224315_job4683389/models"
+MODEL_NAME = "SpliceVI_SUBSET_88EPOCHS_LINEARDECODER_PARTIALENCODER"
+MODEL_PATH = "/gpfs/commons/home/svaidyanathan/multi_vi_splice_runs/MultiVISpliceTraining_20250522_132915_job4818968/models"
 
 LATENT_EVAL_OUTDIR = os.environ.get("LATENT_EVAL_OUTDIR", "./latent_eval_output")
 OVERALL_DIR    = os.path.join(LATENT_EVAL_OUTDIR, "overall")
@@ -83,9 +83,9 @@ os.makedirs(os.path.join(SUBCLUSTER_DIR, "figures", "confusion_matrices"), exist
 os.makedirs(os.path.join(SUBCLUSTER_DIR, "figures", "umaps"), exist_ok=True)
 
 # Parameters
-TOP_N_CELLTYPES   = 10
+TOP_N_CELLTYPES   = 5
 NEIGHBOR_K         = [30]
-CLUSTER_NUMBERS    = [3, 5]
+CLUSTER_NUMBERS    = [3, 5, 7, 10, 15, 20]
 TARGET_CELL_TYPES  = ["Excitatory Neurons", "MICROGLIA"]
 CELL_TYPE_COLUMN   = "broad_cell_type"
 UMAP_N_NEIGHBORS   = 15  # neighbors for UMAP
@@ -149,6 +149,8 @@ def plot_umap(adata, rep_name, variable_name, out_dir, num_groups=None):
             adata,
             color=variable_name,
             cmap='viridis',
+            vmin=0,
+            vmax=1,
             show=False,
             frameon=True,
             legend_loc='right margin',
@@ -473,7 +475,7 @@ for rep, Z in groups.items():
     )
     fig, ax = plt.subplots(figsize=(8,8))
     disp.plot(ax=ax, cmap='Blues', colorbar=False)
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=90, ha='center')
+    plt.setp(ax.get_xticklabels(), rotation=90, ha='center')
     fig.tight_layout()
     fname = f"conf_mat_{MODEL_NAME}_{rep}.png"
     fig.savefig(os.path.join(CLASSIF_DIR, 'figures', fname),
@@ -539,7 +541,7 @@ for sc_score in ['S_GE','S_AS']:
     plot_umap(ad, f'Z_joint_{sc_score}', sc_score, os.path.join(NEIGHBOR_DIR,'figures'), None)
 # scatter
 fig,ax=plt.subplots(figsize=(5,5))
-sns.scatterplot(x='S_GE',y='S_AS',data=_df_nb,alpha=0.5)
+sns.scatterplot(x='S_GE',y='S_AS',data=_df_nb,alpha=0.1)
 fname = os.path.join(NEIGHBOR_DIR,'figures','scatter_SGE_SAS.png')
 fig.savefig(fname, dpi=300); plt.close(fig)
 logger.info("[Neighborhood] Complete")

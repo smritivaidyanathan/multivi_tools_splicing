@@ -32,7 +32,7 @@ CSV_OUT = os.path.join(IMPUTATION_EVAL_OUTDIR, "imputation_results.csv")
 MUDATA_PATH = ("/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu")
 
 UMAP_GROUP = "broad_cell_type"
-MISSING_PCT_PAIRS = [(0.8, 0.0), (0.2, 0.2), (0.5, 0.5), (0.8, 0.8)]
+MISSING_PCT_PAIRS = [(0.0, 0.2), (0.0, 0.5), (0.0, 0.8), (0.2, 0.0), (0.5, 0.0), (0.8, 0.0), (0.2, 0.2), (0.5, 0.5), (0.8, 0.8)]
 SEED = 42
 
 # ------------------------------------------------------------------------------
@@ -257,9 +257,12 @@ def define_models():
 # Main
 # ------------------------------------------------------------------------------
 def main():
+    if os.path.exists(CSV_OUT):
+        os.remove(CSV_OUT)
+    first_write = True
+
     random.seed(SEED)
     np.random.seed(SEED)
-    records = []
 
     for pct_rna, pct_splice in MISSING_PCT_PAIRS:
         label = f"r{pct_rna:.2f}_s{pct_splice:.2f}"
@@ -288,7 +291,7 @@ def main():
             model = setup_fn(mdata)
             print("    - calling model.train()", flush=True)
             model.view_anndata_setup()
-            model.train(max_epochs=20, batch_size = 256, n_epochs_kl_warmup = 10, lr_scheduler_type="step", lr_scheduler_step = 5, lr_factor = 0.5)
+            model.train(lr = 1e-3, max_epochs=20, batch_size = 256, n_epochs_kl_warmup = 10, lr_scheduler_type="step", step_size = 5, lr_factor = 0.5)
             print("    - training complete", flush=True)
 
             print("    - computing imputation…", flush=True)
@@ -322,11 +325,17 @@ def main():
             else:
                 m_spl = {'mse': np.nan, 'median_l1': np.nan, 'spearman': np.nan}
 
-            records.append({
+            record = {
                 'model': name, 'pct_rna': pct_rna, 'pct_splice': pct_splice,
                 **{f"rna_{k}":v for k,v in m_rna.items()},
                 **{f"spl_{k}":v for k,v in m_spl.items()},
-            })
+            }
+
+            with open(CSV_OUT, 'a') as f:
+                pd.DataFrame([record]).to_csv(f, header=first_write, index=False)
+                f.flush()
+            first_write = False
+
 
             print("    - generating UMAP plot…", flush=True)
             lat = model.get_latent_representation()
@@ -350,10 +359,6 @@ def main():
         gc.collect()
         print("  * cleaned up MuData", flush=True)
 
-    print("Writing CSV…", flush=True)
-    df = pd.DataFrame.from_records(records)
-    df.to_csv(CSV_OUT, index=False)
-    print("Wrote metrics to", CSV_OUT, flush=True)
 
 
 if __name__ == "__main__":
