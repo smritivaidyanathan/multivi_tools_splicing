@@ -3,7 +3,10 @@ import os
 import inspect
 import argparse
 
-import scvi
+import sys
+import scvi # type: ignore
+print(scvi.__file__)      # Shows the path to the installed module
+print(scvi.__version__)   # Shows the installed version
 import mudata as mu
 import wandb
 from pytorch_lightning.loggers import WandbLogger
@@ -134,15 +137,12 @@ full_config = {
     **model_kwargs,
     "umap_cell_label": umap_labels,
 }
-wandb.init(project="multivi-splice", config=full_config)
-wandb_logger = WandbLogger(project="multivi-splice", config=full_config)
+wandb.init(project="MLCB_SUBMISSION", entity="sv2785-columbia-university", config=full_config)
+wandb_logger = WandbLogger(project="MLCB_SUBMISSION", entity="sv2785-columbia-university", config=full_config)
 
 # ------------------------------
 # 6. Load data & set up model
 # ------------------------------
-
-
-
 
 from scipy import sparse
 import numpy as np
@@ -190,7 +190,6 @@ import gc
 # del cluster, junction, cluster_arr, junction_arr, mask
 # gc.collect()  # give Python a nudge to free the memory
 
-
 print("MuData modalities loaded:", list(mdata.mod.keys()))
 print(mdata)
 
@@ -198,7 +197,7 @@ scvi.model.MULTIVISPLICE.setup_mudata(
     mdata,
     batch_key = "dataset",
     size_factor_key="X_library_size",
-    rna_layer="raw_counts",
+    rna_layer="length_norm",
     junc_ratio_layer="junc_ratio",
     atse_counts_layer="cell_by_cluster_matrix",
     junc_counts_layer="cell_by_junction_matrix",
@@ -248,7 +247,6 @@ X = model.adata["splicing"].layers["junc_ratio"]
 
 print(X)
 C = model.adata["splicing"].layers[ac_key]
-
 
 # ------------------------------
 # 7. Train

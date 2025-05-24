@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-imputation_benchmark.py
+imputation_eval_single.py
 
-Improved benchmark for Smart-seq2 length-normalized data
-with better evaluation methodology and library size handling.
+Single-condition imputation benchmark for parallel execution
 """
 
 import os
@@ -12,47 +11,33 @@ import gc
 import numpy as np
 import pandas as pd
 import mudata as mu
-
 import sys
-import scvi # type: ignore
-
+import scvi
 import scanpy as sc
 from scipy import sparse
 from scipy.stats import spearmanr, linregress, pearsonr
 import matplotlib.pyplot as plt
 
-# ------------------------------------------------------------------------------
-# Config from environment / defaults
-# ------------------------------------------------------------------------------
-IMPUTATION_EVAL_OUTDIR = os.environ.get(
-    "IMPUTATION_EVAL_OUTDIR", "./imputation_eval_output"
-)
+# Get condition from environment
+PCT_RNA = float(os.environ.get("PCT_RNA", "0.1"))
+PCT_SPLICE = float(os.environ.get("PCT_SPLICE", "0.0"))
+IMPUTATION_EVAL_OUTDIR = os.environ.get("IMPUTATION_EVAL_OUTDIR", "./imputation_eval_output")
+
+# Setup directories
 FIG_DIR = os.path.join(IMPUTATION_EVAL_OUTDIR, "figures")
 os.makedirs(FIG_DIR, exist_ok=True)
 CSV_OUT = os.path.join(IMPUTATION_EVAL_OUTDIR, "imputation_results.csv")
 
-MUDATA_PATH = ("/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu")
-
+# Constants
+MUDATA_PATH = "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu"
 UMAP_GROUP = "broad_cell_type"
-MISSING_PCT_PAIRS = [
-    (0.1, 0.0),   # only modality 1 has medium missingness
-    (0.0, 0.1),   # only modality 2 has medium missingness
-    (0.1, 0.1),    # symmetric moderate
-    (0.0, 0.3),
-    (0.3, 0.0),
-    (0.3, 0.3),
-    (0.0, 0.5),
-    (0.5, 0.0),
-    (0.5, 0.5)
-]
-
 SEED = 42
 
-# ------------------------------------------------------------------------------
-# Improved utilities: corrupt & evaluate
-# ------------------------------------------------------------------------------
+print(f"→ Running imputation evaluation for RNA={PCT_RNA}, Splice={PCT_SPLICE}")
+print(f"→ Output directory: {IMPUTATION_EVAL_OUTDIR}")
 
-def plot_real_vs_imputed(x, y, kind, max_points=10000, evaluation_info="", pct_rna=0.0, pct_splice=0.0):
+# Copy all functions from your original script exactly
+def plot_real_vs_imputed(x, y, kind, max_points=20000, evaluation_info="", pct_rna=0.0, pct_splice=0.0):
     """
     Enhanced plotting with better statistics and information.
     """
@@ -65,16 +50,15 @@ def plot_real_vs_imputed(x, y, kind, max_points=10000, evaluation_info="", pct_r
     slope, intercept, r_pearson, p_value, _ = linregress(x, y)
     r_spearman, p_spearman = spearmanr(x, y)
     
-    plt.figure(figsize=(6, 6))
+    plt.figure(figsize=(5, 5))
     plt.scatter(x, y, s=6, alpha=0.3, edgecolors='none', c='steelblue')
 
     # Best-fit line
     x0 = np.array([x.min(), x.max()])
-    plt.plot(x0, intercept + slope * x0, color='red', linewidth=2, 
-             label=f'y = {slope:.3f}x + {intercept:.3f}')
+    plt.plot(x0, intercept + slope * x0, color='red', linewidth=2)
     
     # Perfect correlation line for reference
-    plt.plot(x0, x0, color='gray', linewidth=1, linestyle='--', alpha=0.7, label='Perfect correlation')
+    plt.plot(x0, x0, color='gray', linewidth=1, linestyle='--', alpha=0.7)
 
     # Increase font sizes for x and y tick labels
     plt.xlabel("True values (length-normalized)", fontsize=16)
@@ -103,13 +87,13 @@ def plot_real_vs_imputed(x, y, kind, max_points=10000, evaluation_info="", pct_r
     #          f"Pearson r={r_pearson:.3f}, Spearman ρ={r_spearman:.3f}",
     #          fontsize=12)
     
-    plt.legend(fontsize=10)
-    plt.grid(True, alpha=0.3)
+    # plt.legend(fontsize=10)
+    plt.grid(False)  # Remove grid
     
     # Add some statistics text with larger font
     stats_text = f"n={len(x):,}\nMSE={((y-x)**2).mean():.3f}\nMAE={np.abs(y-x).mean():.3f}"
     plt.text(0.02, 0.98, stats_text, transform=plt.gca().transAxes, 
-             verticalalignment='top', fontsize=11,
+             verticalalignment='top', fontsize=12,
              bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
     
     # Make filename more descriptive
@@ -315,9 +299,6 @@ def evaluate_imputation_improved(original, imputed, Z=None, likelihood=None, tar
     return res
 
 
-# ------------------------------------------------------------------------------
-# Model factory (unchanged)
-# ------------------------------------------------------------------------------
 def define_models():
     def build(mdata, latent_dim, distribution):
         scvi.model.MULTIVISPLICE.setup_mudata(
@@ -348,201 +329,197 @@ def define_models():
         "Splice-VI(Beta-Binomial Z=40)": lambda md: build(md, 40, "beta_binomial")
     }
 
-# ------------------------------------------------------------------------------
-# Improved Main
-# ------------------------------------------------------------------------------
-def main():
-    if os.path.exists(CSV_OUT):
-        os.remove(CSV_OUT)
-    first_write = True
 
+def main():
     random.seed(SEED)
     np.random.seed(SEED)
+    
+    # Single condition instead of loop
+    label = f"r{PCT_RNA:.2f}_s{PCT_SPLICE:.2f}"
+    print(f"\n--- Missingness {label} ---", flush=True)
 
-    for pct_rna, pct_splice in MISSING_PCT_PAIRS:
-        label = f"r{pct_rna:.2f}_s{pct_splice:.2f}"
-        print(f"\n--- Missingness {label} ---", flush=True)
+    print("  * loading fresh MuData…", flush=True)
+    mdata = mu.read_h5mu(MUDATA_PATH)
 
-        print("  * loading fresh MuData…", flush=True)
-        mdata = mu.read_h5mu(MUDATA_PATH)
+    # Subsample cells
+    n_cells = mdata.n_obs
+    n_sub = max(1, int(0.5 * n_cells))
+    rng = np.random.default_rng(SEED)
+    sub_idx = rng.choice(n_cells, size=n_sub, replace=False)
+    mdata = mdata[sub_idx, :]
+    print(f"  → working on a {n_sub}/{n_cells} (~{n_sub/n_cells:.1%}) subset of cells")
 
-        # Subsample cells (increased to 50% for better evaluation)
-        n_cells = mdata.n_obs
-        n_sub = max(1, int(0.5 * n_cells))
-        rng = np.random.default_rng(SEED)
-        sub_idx = rng.choice(n_cells, size=n_sub, replace=False)
-        mdata = mdata[sub_idx, :]
-        print(f"  → working on a {n_sub}/{n_cells} (~{n_sub/n_cells:.1%}) subset of cells")
+    # Print data statistics
+    if 'length_norm' in mdata['rna'].layers:
+        X = mdata['rna'].layers['length_norm']
+        if sparse.isspmatrix(X):
+            X_arr = X.toarray()
+        else:
+            X_arr = X
+        print(f"  → Length-norm expression: {X_arr.min():.3f} - {X_arr.max():.3f}, "
+              f"median={np.median(X_arr[X_arr > 0]):.3f}")
 
-        # Print some data statistics
-        if 'length_norm' in mdata['rna'].layers:
-            X = mdata['rna'].layers['length_norm']
-            if sparse.isspmatrix(X):
-                X_arr = X.toarray()
-            else:
-                X_arr = X
-            print(f"  → Length-norm expression: {X_arr.min():.3f} - {X_arr.max():.3f}, "
-                  f"median={np.median(X_arr[X_arr > 0]):.3f}")
+    # Corruption
+    orig = corrupt_mudata_inplace_improved(mdata, PCT_RNA, PCT_SPLICE, SEED)
 
-        # Use improved corruption
-        orig = corrupt_mudata_inplace_improved(mdata, pct_rna, pct_splice, SEED)
+    # Train all models for this condition
+    models = define_models()
+    results = []
+    
+    for name, setup_fn in models.items():
+        print(f"  * Training {name} …", flush=True)
+        model = setup_fn(mdata)
+        print("    - calling model.train()", flush=True)
+        model.train(lr=1e-4, max_epochs=50, batch_size=256, 
+                   n_epochs_kl_warmup=10, lr_scheduler_type="step", 
+                   step_size=5, lr_factor=0.5)
+        print("    - training complete", flush=True)
 
-        models = define_models()
-        for name, setup_fn in models.items():
-            print(f"  * Training {name} …", flush=True)
-            model = setup_fn(mdata)
-            print("    - calling model.train()", flush=True)
-            model.train(lr=1e-4, max_epochs=5, batch_size=256, 
-                       n_epochs_kl_warmup=10, lr_scheduler_type="step", 
-                       step_size=5, lr_factor=0.5)
-            print("    - training complete", flush=True)
-
-            print("    - computing imputation…", flush=True)
-            # Get imputed gene expression - check available methods
+        print("    - computing imputation…", flush=True)
+        # Get imputed gene expression - check available methods
+        try:
+            # Try the standard method without library_size parameter
+            expr = model.get_normalized_expression(return_numpy=True)
+            print(f"    - got normalized expression shape: {expr.shape}")
+        except Exception as e:
+            print(f"    - get_normalized_expression failed: {e}")
+            # Alternative: try get_expression or other methods
             try:
-                # Try the standard method without library_size parameter
-                expr = model.get_normalized_expression(return_numpy=True)
-                print(f"    - got normalized expression shape: {expr.shape}")
-            except Exception as e:
-                print(f"    - get_normalized_expression failed: {e}")
-                # Alternative: try get_expression or other methods
-                try:
-                    expr = model.get_expression(return_numpy=True)
-                    print(f"    - got expression shape: {expr.shape}")
-                except Exception as e2:
-                    print(f"    - get_expression also failed: {e2}")
-                    # Last resort: use latent representation or skip
-                    print("    - Skipping expression imputation due to method errors")
-                    continue
-            
-            # Get imputed splicing
+                expr = model.get_expression(return_numpy=True)
+                print(f"    - got expression shape: {expr.shape}")
+            except Exception as e2:
+                print(f"    - get_expression also failed: {e2}")
+                # Last resort: use latent representation or skip
+                print("    - Skipping expression imputation due to method errors")
+                continue
+        
+        # Get imputed splicing
+        try:
+            imp_spl = model.get_normalized_splicing(return_numpy=True)
+            print(f"    - got normalized splicing shape: {imp_spl.shape}")
+        except Exception as e:
+            print(f"    - get_normalized_splicing failed: {e}")
             try:
-                imp_spl = model.get_normalized_splicing(return_numpy=True)
-                print(f"    - got normalized splicing shape: {imp_spl.shape}")
-            except Exception as e:
-                print(f"    - get_normalized_splicing failed: {e}")
-                try:
-                    imp_spl = model.get_splicing(return_numpy=True)
-                    print(f"    - got splicing shape: {imp_spl.shape}")
-                except Exception as e2:
-                    print(f"    - get_splicing also failed: {e2}")
-                    imp_spl = None
+                imp_spl = model.get_splicing(return_numpy=True)
+                print(f"    - got splicing shape: {imp_spl.shape}")
+            except Exception as e2:
+                print(f"    - get_splicing also failed: {e2}")
+                imp_spl = None
 
-            # Check what we got and manually scale to match expected range
-            if expr is not None:
-                print(f"    - Raw imputed expression range: {expr.min():.3f} - {expr.max():.3f}")
-                print(f"    - Raw imputed expression median (nonzero): {np.median(expr[expr > 0]):.3f}")
-                
-                # Get the original data scale for comparison
-                X_orig = mdata['rna'].layers['length_norm']
-                if sparse.isspmatrix(X_orig):
-                    X_orig_arr = X_orig.toarray()
-                else:
-                    X_orig_arr = X_orig
-                print(f"    - Original length-norm range: {X_orig_arr.min():.3f} - {X_orig_arr.max():.3f}")
-                print(f"    - Original length-norm median (nonzero): {np.median(X_orig_arr[X_orig_arr > 0]):.3f}")
-                
-                # Manual scaling using library sizes from obsm
-                try:
-                    lib_sizes = mdata['rna'].obsm["X_library_size"].flatten()
-                    median_lib_size = np.median(lib_sizes)
-                    target_lib_size = median_lib_size  # Use the actual median as target, not 1e4
-                    
-                    print(f"    - Library size stats: min={lib_sizes.min():.0f}, max={lib_sizes.max():.0f}, median={median_lib_size:.0f}")
-                    print(f"    - This is normal for Smart-seq2 data across {X_orig_arr.shape[1]} genes")
-                    
-                    # The model likely returns expression already normalized by library size
-                    # So we need to scale back up to the original scale
-                    original_expr = expr.copy()
-                    
-                    # First, try scaling by median library size
-                    expr = expr * median_lib_size
-                    print(f"    - Scaled by median library size: {median_lib_size:.0f}")
-                    print(f"    - After lib scaling: {expr.min():.3f} - {expr.max():.3f}")
-                    
-                    # Check if this gives us reasonable values compared to original data
-                    original_p95 = np.percentile(X_orig_arr[X_orig_arr > 0], 95)
-                    current_p95 = np.percentile(expr[expr > 0], 95) if np.any(expr > 0) else 0
-                    
-                    print(f"    - 95th percentiles: original={original_p95:.1f}, current={current_p95:.1f}")
-                    
-                    # If still very different, apply additional correction
-                    if current_p95 > 0 and (current_p95 < 0.1 * original_p95 or current_p95 > 10 * original_p95):
-                        correction_factor = original_p95 / current_p95
-                        expr = expr * correction_factor
-                        print(f"    - Applied correction factor: {correction_factor:.3f}")
-                        print(f"    - Final range: {expr.min():.3f} - {expr.max():.3f}")
-                        
-                        final_p95 = np.percentile(expr[expr > 0], 95) if np.any(expr > 0) else 0
-                        print(f"    - Final 95th percentile: {final_p95:.1f}")
-                    else:
-                        print(f"    - Scaling looks good, keeping current values")
-                        
-                except Exception as e:
-                    print(f"    - Could not scale using library sizes: {e}")
-                    print(f"    - Using expression as-is")
-
-            # Extract Z and likelihood from model name for evaluation
-            Z = None
-            likelihood = None
-            if "Z=" in name:
-                try:
-                    Z = int(name.split("Z=")[1].split(")")[0])
-                except:
-                    Z = None
-            if "Binomial" in name:
-                if "Beta-Binomial" in name:
-                    likelihood = "beta_binomial"
-                else:
-                    likelihood = "binomial"
-
-            # Improved evaluation with whatever we got
-            if orig['rna'] is not None and expr is not None:
-                # Use the actual median library size as target instead of 1e4
-                actual_target = np.median(mdata['rna'].obsm["X_library_size"].flatten())
-                m_rna = evaluate_imputation_improved(orig['rna'], expr, Z=Z, likelihood=likelihood,
-                                                   target_lib_size=actual_target, pct_rna=pct_rna, pct_splice=pct_splice)
-            else:
-                m_rna = {k: np.nan for k in ['mse', 'mae', 'median_l1', 'spearman', 'pearson', 'r2']}
+        # Check what we got and manually scale to match expected range
+        if expr is not None:
+            print(f"    - Raw imputed expression range: {expr.min():.3f} - {expr.max():.3f}")
+            print(f"    - Raw imputed expression median (nonzero): {np.median(expr[expr > 0]):.3f}")
             
-            if orig['splice'] is not None and imp_spl is not None:
-                m_spl = evaluate_imputation_improved(orig['splice'], imp_spl, Z=Z, likelihood=likelihood,
-                                                   pct_rna=pct_rna, pct_splice=pct_splice)
+            # Get the original data scale for comparison
+            X_orig = mdata['rna'].layers['length_norm']
+            if sparse.isspmatrix(X_orig):
+                X_orig_arr = X_orig.toarray()
             else:
-                m_spl = {k: np.nan for k in ['mse', 'mae', 'median_l1', 'spearman', 'pearson', 'r2']}
+                X_orig_arr = X_orig
+            print(f"    - Original length-norm range: {X_orig_arr.min():.3f} - {X_orig_arr.max():.3f}")
+            print(f"    - Original length-norm median (nonzero): {np.median(X_orig_arr[X_orig_arr > 0]):.3f}")
+            
+            # Manual scaling using library sizes from obsm
+            try:
+                lib_sizes = mdata['rna'].obsm["X_library_size"].flatten()
+                median_lib_size = np.median(lib_sizes)
+                target_lib_size = median_lib_size  # Use the actual median as target, not 1e4
+                
+                print(f"    - Library size stats: min={lib_sizes.min():.0f}, max={lib_sizes.max():.0f}, median={median_lib_size:.0f}")
+                print(f"    - This is normal for Smart-seq2 data across {X_orig_arr.shape[1]} genes")
+                
+                # The model likely returns expression already normalized by library size
+                # So we need to scale back up to the original scale
+                original_expr = expr.copy()
+                
+                # First, try scaling by median library size
+                expr = expr * median_lib_size
+                print(f"    - Scaled by median library size: {median_lib_size:.0f}")
+                print(f"    - After lib scaling: {expr.min():.3f} - {expr.max():.3f}")
+                
+                # Check if this gives us reasonable values compared to original data
+                original_p95 = np.percentile(X_orig_arr[X_orig_arr > 0], 95)
+                current_p95 = np.percentile(expr[expr > 0], 95) if np.any(expr > 0) else 0
+                
+                print(f"    - 95th percentiles: original={original_p95:.1f}, current={current_p95:.1f}")
+                
+                # If still very different, apply additional correction
+                if current_p95 > 0 and (current_p95 < 0.1 * original_p95 or current_p95 > 10 * original_p95):
+                    correction_factor = original_p95 / current_p95
+                    expr = expr * correction_factor
+                    print(f"    - Applied correction factor: {correction_factor:.3f}")
+                    print(f"    - Final range: {expr.min():.3f} - {expr.max():.3f}")
+                    
+                    final_p95 = np.percentile(expr[expr > 0], 95) if np.any(expr > 0) else 0
+                    print(f"    - Final 95th percentile: {final_p95:.1f}")
+                else:
+                    print(f"    - Scaling looks good, keeping current values")
+                    
+            except Exception as e:
+                print(f"    - Could not scale using library sizes: {e}")
+                print(f"    - Using expression as-is")
 
-            record = {
-                'model': name, 'pct_rna': pct_rna, 'pct_splice': pct_splice,
-                **{f"rna_{k}": v for k, v in m_rna.items()},
-                **{f"spl_{k}": v for k, v in m_spl.items()},
-            }
+        # Extract Z and likelihood from model name for evaluation
+        Z = None
+        likelihood = None
+        if "Z=" in name:
+            try:
+                Z = int(name.split("Z=")[1].split(")")[0])
+            except:
+                Z = None
+        if "Binomial" in name:
+            if "Beta-Binomial" in name:
+                likelihood = "beta_binomial"
+            else:
+                likelihood = "binomial"
 
-            with open(CSV_OUT, 'a') as f:
-                pd.DataFrame([record]).to_csv(f, header=first_write, index=False)
-                f.flush()
-            first_write = False
+        # Evaluation and result collection
+        if orig['rna'] is not None and expr is not None:
+            actual_target = np.median(mdata['rna'].obsm["X_library_size"].flatten())
+            m_rna = evaluate_imputation_improved(orig['rna'], expr, Z=Z, likelihood=likelihood,
+                                               target_lib_size=actual_target, pct_rna=PCT_RNA, pct_splice=PCT_SPLICE)
+        else:
+            m_rna = {k: np.nan for k in ['mse', 'mae', 'median_l1', 'spearman', 'pearson', 'r2']}
+        
+        if orig['splice'] is not None and imp_spl is not None:
+            m_spl = evaluate_imputation_improved(orig['splice'], imp_spl, Z=Z, likelihood=likelihood,
+                                               pct_rna=PCT_RNA, pct_splice=PCT_SPLICE)
+        else:
+            m_spl = {k: np.nan for k in ['mse', 'mae', 'median_l1', 'spearman', 'pearson', 'r2']}
 
-            # Generate UMAP (unchanged)
-            print("    - generating UMAP plot…", flush=True)
-            lat = model.get_latent_representation()
-            ad = sc.AnnData(lat)
-            ad.obs = mdata['rna'].obs
-            sc.pp.neighbors(ad, use_rep="X")
-            sc.tl.umap(ad, min_dist=0.2)
-            fig = sc.pl.umap(ad, color=UMAP_GROUP, show=False,
-                             return_fig=True, title=f"{name} {label}")
-            fig.savefig(os.path.join(FIG_DIR, f"{name}_umap_{label}.png"), 
-                       dpi=300, bbox_inches="tight")
-            plt.close(fig)
+        record = {
+            'model': name, 'pct_rna': PCT_RNA, 'pct_splice': PCT_SPLICE,
+            **{f"rna_{k}": v for k, v in m_rna.items()},
+            **{f"spl_{k}": v for k, v in m_spl.items()},
+        }
+        results.append(record)
 
-            del model, lat, ad, fig
-            gc.collect()
-            print("    - cleaned up model objects", flush=True)
+        # UMAP
+        print("    - generating UMAP plot…", flush=True)
+        lat = model.get_latent_representation()
+        ad = sc.AnnData(lat)
+        ad.obs = mdata['rna'].obs
+        sc.pp.neighbors(ad, use_rep="X")
+        sc.tl.umap(ad, min_dist=0.2)
+        fig = sc.pl.umap(ad, color=UMAP_GROUP, show=False,
+                         return_fig=True, title=f"{name} {label}")
+        fig.savefig(os.path.join(FIG_DIR, f"{name}_umap_{label}.png"), 
+                   dpi=300, bbox_inches="tight")
+        plt.close(fig)
 
-        del mdata, orig
+        del model, lat, ad, fig
         gc.collect()
-        print("  * cleaned up MuData", flush=True)
+        print("    - cleaned up model objects", flush=True)
 
+    # Save results for this condition
+    df = pd.DataFrame(results)
+    df.to_csv(CSV_OUT, index=False)
+    print(f"→ Results saved to: {CSV_OUT}")
+
+    del mdata, orig
+    gc.collect()
+    print("  * cleaned up MuData", flush=True)
 
 if __name__ == "__main__":
     main()

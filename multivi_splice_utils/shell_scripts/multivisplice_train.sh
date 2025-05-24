@@ -19,6 +19,8 @@
 
 # Required
 MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/aligned__ge_splice_combined_20250513_035938.h5mu"
+# Test on subset of data
+# MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu"
 
 # Optional hyperparams for MODEL INIT (uncomment to override; defaults in parentheses):
 # N_GENES="None"                 # --n_genes (default: None, inferred from data)
@@ -26,7 +28,7 @@ MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SP
 # MODALITY_WEIGHTS="equal"       # --modality_weights (default: "equal")
 # MODALITY_PENALTY="Jeffreys"    # --modality_penalty (default: "Jeffreys")
 # N_HIDDEN="None"                # --n_hidden (default: None = √n_junctions)
-LATENT_DIM=40                     # --n_latent (default: None = √n_hidden)
+LATENT_DIM=30                     # --n_latent (default: None = √n_hidden)
 # N_LAYERS_ENCODER=2               # --n_layers_encoder (default: 2)
 # N_LAYERS_DECODER=2               # --n_layers_decoder (default: 2)
 # DROPOUT_RATE=0.1                 # --dropout_rate (default: 0.1)
@@ -44,8 +46,8 @@ EXPRESSION_ARCHITECTURE="linear"   # --expression_architecture (default: "vanill
 # FULLY_PAIRED="false"           # --fully_paired (default: false)
 
 # Optional hyperparams for TRAINING (uncomment to override; defaults in parentheses):
-#MAX_EPOCHS=20                   # --max_epochs (default: 500)
-LR=1e-3                         # --lr (default: 1e-4)
+MAX_EPOCHS=200                   # --max_epochs (default: 500)
+LR=0.000001                        # --lr (default: 1e-4)
 # ACCELERATOR="auto"             # --accelerator (default: "auto")
 # DEVICES="auto"                 # --devices (default: "auto")
 # TRAIN_SIZE="None"              # --train_size (default: None)
@@ -55,13 +57,13 @@ BATCH_SIZE=256                   # --batch_size (default: 128)
 # WEIGHT_DECAY=1e-3                # --weight_decay (default: 1e-3)
 # EPS=1e-08                        # --eps (default: 1e-08)
 # EARLY_STOPPING="true"          # --early_stopping (default: true)
-EARLY_STOPPING_PATIENCE=10      #--early_stopping_patience (default: 50)
+EARLY_STOPPING_PATIENCE=5      #--early_stopping_patience (default: 50)
 # SAVE_BEST="true"               # --save_best (default: true)
 # CHECK_VAL_EVERY_N_EPOCH="None" # --check_val_every_n_epoch (default: None)
 # N_STEPS_KL_WARMUP="None"       # --n_steps_kl_warmup (default: None)
-N_EPOCHS_KL_WARMUP=20            # --n_epochs_kl_warmup (default: 50)
-ADVERSARIAL_MIXING="true"      # --adversarial_mixing (default: true)
-STEP_SIZE=5                    # --step_size (default: 10)
+N_EPOCHS_KL_WARMUP=10            # --n_epochs_kl_warmup (default: 50)
+#ADVERSARIAL_MIXING="true"      # --adversarial_mixing (default: true)
+STEP_SIZE=10                    # --step_size (default: 10)
 LR_SCHEDULER_TYPE="step"      # --lr_scheduler_type (default: "plateau")
 #REDUCE_LR_ON_PLATEAU="false"     # --reduce_lr_on_plateau (default: false)
 LR_FACTOR=0.5                    # --lr_factor (default: 0.6)
@@ -74,12 +76,12 @@ LR_FACTOR=0.5                    # --lr_factor (default: 0.6)
 # PLAN_KWARGS="None"             # --plan_kwargs (default: None)
 
 # UMAP labels (uncomment to override; default: broad_cell_type)
-UMAP_CELL_LABELS="broad_cell_type dataset mouse.id"
+UMAP_CELL_LABELS="broad_cell_type dataset"
 # ───────────────────────────────────────────────────────────────────────────
 
 # Build unique run folder
 BASE_NAME="MultiVISpliceTraining"
-RUN_ROOT="/gpfs/commons/home/svaidyanathan/multi_vi_splice_runs"
+RUN_ROOT="/gpfs/commons/home/kisaev/multi_vi_splice_runs"
 TS=$(date +"%Y%m%d_%H%M%S")
 RUN_ID="${TS}_job${SLURM_JOB_ID:-manual}"
 RUN_DIR="${RUN_ROOT}/${BASE_NAME}_${RUN_ID}"
@@ -97,7 +99,7 @@ echo "   models  → ${RUN_DIR}/models"
 echo "   figures → ${RUN_DIR}/figures"
 
 # Initialize Conda
-CONDA_BASE="/gpfs/commons/home/svaidyanathan/miniconda3"
+CONDA_BASE="/gpfs/commons/home/kisaev/miniconda3"
 source "${CONDA_BASE}/etc/profile.d/conda.sh"
 conda activate scvi-env
 
@@ -167,5 +169,6 @@ if [ -n "$UMAP_CELL_LABELS" ]; then
   read -r -a labels <<< "$UMAP_CELL_LABELS"
   args+=( --umap_cell_label "${labels[@]}" )
 fi
+
 # Launch the pipeline
-python /gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/multivi_splice_utils/runfiles/multivirun.py "${args[@]}"
+python /gpfs/commons/home/kisaev/multivi_tools_splicing/multivi_splice_utils/runfiles/multivirun.py "${args[@]}"
