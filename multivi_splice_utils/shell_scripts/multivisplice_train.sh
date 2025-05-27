@@ -20,8 +20,8 @@
 # Required
 #MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/aligned__ge_splice_combined_20250513_035938.h5mu"
 # Test on subset of data
-MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu"
-
+# MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu"
+MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938_full_genes.h5mu"
 # Optional hyperparams for MODEL INIT (uncomment to override; defaults in parentheses):
 # N_GENES="None"                 # --n_genes (default: None, inferred from data)
 # N_JUNCTIONS="None"             # --n_junctions (default: None, inferred from data)
@@ -46,7 +46,7 @@ EXPRESSION_ARCHITECTURE="linear"   # --expression_architecture (default: "vanill
 # FULLY_PAIRED="false"           # --fully_paired (default: false)
 
 # Optional hyperparams for TRAINING (uncomment to override; defaults in parentheses):
-MAX_EPOCHS=50                   # --max_epochs (default: 500)
+MAX_EPOCHS=75                   # --max_epochs (default: 500)
 LR=0.00001                        # --lr (default: 1e-4)
 # ACCELERATOR="auto"             # --accelerator (default: "auto")
 # DEVICES="auto"                 # --devices (default: "auto")
@@ -54,7 +54,7 @@ LR=0.00001                        # --lr (default: 1e-4)
 # VALIDATION_SIZE="None"         # --validation_size (default: None)
 # SHUFFLE_SET_SPLIT="true"       # --shuffle_set_split (default: true)
 BATCH_SIZE=256                   # --batch_size (default: 128)
-# WEIGHT_DECAY=1e-3                # --weight_decay (default: 1e-3)
+WEIGHT_DECAY=1e-6                # --weight_decay (default: 1e-3)
 # EPS=1e-08                        # --eps (default: 1e-08)
 # EARLY_STOPPING="true"          # --early_stopping (default: true)
 EARLY_STOPPING_PATIENCE=10      #--early_stopping_patience (default: 50)

@@ -62,14 +62,15 @@ np.random.seed(RANDOM_SEED)
 random.seed(RANDOM_SEED)
 
 # Path to the MuData and the single model
-USE_FULL_DATASET = True
+USE_FULL_DATASET = False
 FULL_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/aligned__ge_splice_combined_20250513_035938.h5mu" # all 5k genes here...
 SUBSET_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu"
+#SUBSET_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938_full_genes.h5mu"
 
 _default_mudata = FULL_PATH if USE_FULL_DATASET else SUBSET_PATH
 MUDATA_PATH = os.environ.get("MUDATA_PATH", _default_mudata)
-MODEL_NAME = "MultiVISpliceTraining_20250526_195717_job4883643"
-MODEL_PATH = "/gpfs/commons/home/kisaev/multi_vi_splice_runs/MultiVISpliceTraining_20250526_195717_job4883643/models"
+MODEL_NAME = "MultiVISpliceTraining_20250527_054126_job4884259"
+MODEL_PATH = "/gpfs/commons/home/kisaev/multi_vi_splice_runs/MultiVISpliceTraining_20250527_054126_job4884259/models"
 
 LATENT_EVAL_OUTDIR = os.environ.get("LATENT_EVAL_OUTDIR", "./latent_eval_output")
 OVERALL_DIR    = os.path.join(LATENT_EVAL_OUTDIR, "overall")
@@ -88,7 +89,7 @@ os.makedirs(os.path.join(SUBCLUSTER_DIR, "figures", "umaps"), exist_ok=True)
 # Parameters
 TOP_N_CELLTYPES   = 5
 NEIGHBOR_K         = [30]
-CLUSTER_NUMBERS    = [3, 5, 10, 15, 20]
+CLUSTER_NUMBERS    = [3, 5, 10]
 TARGET_CELL_TYPES  = ["Excitatory Neurons", "MICROGLIA"]
 CELL_TYPE_COLUMN   = "broad_cell_type"
 UMAP_N_NEIGHBORS   = 15  # neighbors for UMAP
@@ -179,22 +180,22 @@ def plot_subcluster_umap(latent, true_labels, pred_labels_dict, out_prefix, fig_
     sc.pp.neighbors(ad, use_rep='X_latent', n_neighbors=n_neighbors)
     sc.tl.umap(ad, min_dist=min_dist)
 
-    # plot the “true” labels
-    fig, ax = plt.subplots(figsize=(4,4))
-    sc.pl.umap(ad, color='true', ax=ax, show=False, frameon=True, legend_loc=None)
-    ax.set_title(f"{MODEL_NAME} {out_prefix} — true labels")
-    fname = f"{MODEL_NAME}_{out_prefix}_true_umap.png"
-    fig.savefig(os.path.join(fig_dir, fname), dpi=300, bbox_inches='tight')
+    # plot the "true" labels
+    fig, ax = plt.subplots(figsize=(6, 6))
+    sc.pl.umap(ad, color='true', ax=ax, show=False, frameon=True, legend_loc='on data', legend_fontsize=12)
+    ax.set_title(f"{MODEL_NAME} {out_prefix} — true labels", fontsize=14)
+    fname = f"{MODEL_NAME}_{out_prefix}_true_umap.pdf"
+    fig.savefig(os.path.join(fig_dir, fname), bbox_inches='tight')
     plt.close(fig)
 
     # now add one obs‐column + plot per modality
     for modality, labels in pred_labels_dict.items():
         ad.obs[modality] = labels.astype(str)
-        fig, ax = plt.subplots(figsize=(4,4))
-        sc.pl.umap(ad, color=modality, ax=ax, show=False, frameon=True, legend_loc=None)
-        ax.set_title(f"{MODEL_NAME} {out_prefix} — {modality} predicted labels")
-        fname = f"{MODEL_NAME}_{out_prefix}_{modality}_umap.png"
-        fig.savefig(os.path.join(fig_dir, fname), dpi=300, bbox_inches='tight')
+        fig, ax = plt.subplots(figsize=(6, 6))
+        sc.pl.umap(ad, color=modality, ax=ax, show=False, frameon=True, legend_loc='on data', legend_fontsize=12)
+        ax.set_title(f"{MODEL_NAME} {out_prefix} — {modality} predicted labels", fontsize=14)
+        fname = f"{MODEL_NAME}_{out_prefix}_{modality}_umap.pdf"
+        fig.savefig(os.path.join(fig_dir, fname), bbox_inches='tight')
         plt.close(fig)
 
 # Load dataset and model 
@@ -235,25 +236,23 @@ def extract_concentration_parameters(model):
     # Get the model's module (the actual PyTorch model)
     module = model.module
     
-    # Extract gene concentrations (typically log_phi_g or similar)
-    if hasattr(module, 'log_phi_g'):
-        gene_log_concentrations = module.log_phi_g.detach().cpu().numpy()
-        concentration_data['gene_log_phi'] = gene_log_concentrations
-        concentration_data['gene_phi'] = np.exp(gene_log_concentrations)
-        logger.info(f"Found gene concentrations: {len(gene_log_concentrations)} genes")
+    # Extract gene dispersions (px_r parameter)
+    if hasattr(module, 'px_r'):
+        gene_log_dispersions = module.px_r.detach().cpu().numpy()  # These are log-space
+        concentration_data['gene_log_phi'] = gene_log_dispersions
+        concentration_data['gene_phi'] = np.exp(gene_log_dispersions)  # Convert to actual dispersions
+        logger.info(f"Found gene dispersions (px_r): {len(gene_log_dispersions)} genes")
     
     # Extract junction concentrations (log_phi_j)
     if hasattr(module, 'log_phi_j'):
         junction_log_concentrations = module.log_phi_j.detach().cpu().numpy()
         concentration_data['junction_log_phi'] = junction_log_concentrations
-        concentration_data['junction_phi'] = np.exp(junction_log_concentrations)
+        # Use softplus to match what the model uses during forward pass
+        import torch.nn.functional as F
+        import torch
+        concentration_data['junction_phi'] = F.softplus(torch.tensor(junction_log_concentrations)).numpy()
         logger.info(f"Found junction concentrations: {len(junction_log_concentrations)} junctions")
-    
-    # Look for other potential concentration parameters
-    for name, param in module.named_parameters():
-        if 'phi' in name.lower() and 'log' in name.lower():
-            logger.info(f"Additional concentration parameter found: {name}")
-            concentration_data[name] = param.detach().cpu().numpy()
+
     return concentration_data
 
 def analyze_concentrations(concentration_data, out_dir):
@@ -494,7 +493,7 @@ for ct in valid_ct:
         km = KMeans(n_clusters=k, random_state=RANDOM_SEED)
         lab1 = km.fit_predict(Z_joint[idx1])
         lab2 = km.predict(Z_joint[idx2])
-        # dictionary to hold every modality’s predictions
+        # dictionary to hold every modality's predictions
         preds = {}
         for rep, Z in groups.items():
             clf = LogisticRegression(max_iter=200, random_state=RANDOM_SEED)
@@ -508,10 +507,30 @@ for ct in valid_ct:
                 records_sub.append({'model':MODEL_NAME,'cell_type':ct,'rep':rep,'k':k,'metric':mname,'value':func(lab1,pred)})
             if ct in TARGET_CELL_TYPES:
                 conf_mat = confusion_matrix(lab1, pred)
-                fig,ax=plt.subplots(figsize=(4,4))
-                ConfusionMatrixDisplay(conf_mat).plot(ax=ax, cmap='Blues', colorbar=False)
-                fname = f"{MODEL_NAME}_{ct.replace(' ','_')}_{rep}_k{k}_conf_mat.png"
-                fig.savefig(os.path.join(cm_dir,fname), dpi=300, bbox_inches='tight'); plt.close(fig)
+                fig, ax = plt.subplots(figsize=(5, 5))
+                disp = ConfusionMatrixDisplay(conf_mat, display_labels=range(k))
+                disp.plot(ax=ax, cmap='Blues', colorbar=False)
+                plt.setp(ax.get_xticklabels(), rotation=90, ha='center', fontsize=16)
+                plt.setp(ax.get_yticklabels(), fontsize=16)
+                ax.set_xlabel(ax.get_xlabel(), fontsize=18)
+                ax.set_ylabel(ax.get_ylabel(), fontsize=18)
+                
+                # Ensure the number of ticks matches the number of labels
+                ax.set_xticks(range(k))
+                ax.set_yticks(range(k))
+                
+                # Increase font size of values
+                for i in range(k):
+                    for j in range(k):
+                        ax.text(j, i, f'{conf_mat[i, j]}',
+                               ha='center', va='center',
+                               fontsize=14, color='black' if conf_mat[i, j] < conf_mat.max()/2 else 'white')
+                
+                fig.tight_layout()
+                fname = f"conf_mat_{MODEL_NAME}_{rep}_k{k}.pdf"
+                fig.savefig(os.path.join(cm_dir, fname), bbox_inches='tight')
+                plt.close(fig)
+
         # ─── random‐baseline modality ───────────────────────────────
         # generate a random latent space with the same shape as Z_joint
         rng   = np.random.default_rng(RANDOM_SEED)
@@ -541,12 +560,31 @@ for ct in valid_ct:
 
         # if you also want confusion matrices for the random baseline:
         if ct in TARGET_CELL_TYPES:
-            conf_mat   = confusion_matrix(lab1, pred)
-            fig, ax = plt.subplots(figsize=(4,4))
-            ConfusionMatrixDisplay(conf_mat).plot(ax=ax, cmap='Blues', colorbar=False)
-            fname = f"{MODEL_NAME}_{ct.replace(' ','_')}_random_k{k}_cm.png"
-            fig.savefig(os.path.join(cm_dir, fname), dpi=300, bbox_inches='tight')
+            conf_mat = confusion_matrix(lab1, pred)
+            fig, ax = plt.subplots(figsize=(5, 5))
+            disp = ConfusionMatrixDisplay(conf_mat, display_labels=range(k))
+            disp.plot(ax=ax, cmap='Blues', colorbar=False)
+            plt.setp(ax.get_xticklabels(), rotation=90, ha='center', fontsize=16)
+            plt.setp(ax.get_yticklabels(), fontsize=16)
+            ax.set_xlabel(ax.get_xlabel(), fontsize=18)
+            ax.set_ylabel(ax.get_ylabel(), fontsize=18)
+            
+            # Ensure the number of ticks matches the number of labels
+            ax.set_xticks(range(k))
+            ax.set_yticks(range(k))
+            
+            # Increase font size of values
+            for i in range(k):
+                for j in range(k):
+                    ax.text(j, i, f'{conf_mat[i, j]}',
+                           ha='center', va='center',
+                           fontsize=14, color='black' if conf_mat[i, j] < conf_mat.max()/2 else 'white')
+            
+            fig.tight_layout()
+            fname = f"conf_mat_{MODEL_NAME}_random_k{k}.pdf"
+            fig.savefig(os.path.join(cm_dir, fname), bbox_inches='tight')
             plt.close(fig)
+            
             # —— now plot all UMAPs at once for Z_joint, if this cell type is one you care about:
             plot_subcluster_umap(
                 Z_joint[idx1],
@@ -567,6 +605,7 @@ _df_sub.to_csv(os.path.join(SUBCLUSTER_DIR,'csv_files','subcluster_metrics.csv')
 import seaborn as sns
 
 metrics    = ["accuracy","precision","recall","f1"]
+
 # rep holds your modalities plus the 'random' baseline
 modalities = list(groups.keys()) + ["random"]
 colors     = dict(
@@ -704,17 +743,31 @@ for rep, Z in groups.items():
     })
 
     # confusion matrix
-    cm = confusion_matrix(y_test, y_pred, labels=range(TOP_N_CELLTYPES))
+    cm = confusion_matrix(y_test, y_pred, labels=range(len(y.cat.categories[:TOP_N_CELLTYPES])))
     disp = ConfusionMatrixDisplay(cm,
         display_labels=y.cat.categories[:TOP_N_CELLTYPES]
     )
-    fig, ax = plt.subplots(figsize=(8,8))
+    fig, ax = plt.subplots(figsize=(5, 5))
     disp.plot(ax=ax, cmap='Blues', colorbar=False)
-    plt.setp(ax.get_xticklabels(), rotation=90, ha='center')
+    plt.setp(ax.get_xticklabels(), rotation=90, ha='center', fontsize=16)
+    plt.setp(ax.get_yticklabels(), fontsize=16)
+    ax.set_xlabel(ax.get_xlabel(), fontsize=18)
+    ax.set_ylabel(ax.get_ylabel(), fontsize=18)
+
+    # Ensure the number of ticks matches the number of labels
+    ax.set_xticks(range(len(y.cat.categories[:TOP_N_CELLTYPES])))
+    ax.set_yticks(range(len(y.cat.categories[:TOP_N_CELLTYPES])))
+    
+    # Increase font size of values
+    for i in range(len(y.cat.categories[:TOP_N_CELLTYPES])):
+        for j in range(len(y.cat.categories[:TOP_N_CELLTYPES])):
+            ax.text(j, i, f'{cm[i, j]}',
+                   ha='center', va='center',
+                   fontsize=14, color='black' if cm[i, j] < cm.max()/2 else 'white')
+
     fig.tight_layout()
-    fname = f"conf_mat_{MODEL_NAME}_{rep}.png"
-    fig.savefig(os.path.join(CLASSIF_DIR, 'figures', fname),
-                dpi=300, bbox_inches='tight')
+    fname = f"conf_mat_{MODEL_NAME}_{rep}.pdf"
+    fig.savefig(os.path.join(CLASSIF_DIR, 'figures', fname), bbox_inches='tight')
     plt.close(fig)
 
 _df_cls = pd.DataFrame.from_records(records_cls)

@@ -29,7 +29,7 @@ os.makedirs(FIG_DIR, exist_ok=True)
 CSV_OUT = os.path.join(IMPUTATION_EVAL_OUTDIR, "imputation_results.csv")
 
 # Constants
-MUDATA_PATH = "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu"
+MUDATA_PATH = "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938_full_genes.h5mu"
 UMAP_GROUP = "broad_cell_type"
 SEED = 42
 
@@ -372,9 +372,9 @@ def main():
         print(f"  * Training {name} …", flush=True)
         model = setup_fn(mdata)
         print("    - calling model.train()", flush=True)
-        model.train(lr=1e-3, max_epochs=50, batch_size=256, 
+        model.train(lr=0.00001, max_epochs=20, batch_size=256, 
                    n_epochs_kl_warmup=10, lr_scheduler_type="step", 
-                   step_size=5, lr_factor=0.5)
+                   step_size=10, lr_factor=0.5)
         print("    - training complete", flush=True)
 
         print("    - computing imputation…", flush=True)

@@ -133,8 +133,8 @@ def plot_imputation_dropoff(csv_path, models_to_plot, outdir):
 
 if __name__ == "__main__":
     # Update these paths to match your file locations
-    CSV  = "/gpfs/commons/home/kisaev/multivi_tools_splicing/results/imputation/batch_20250524_144011/consolidated_imputation_results.csv"
-    OUTD = "/gpfs/commons/home/kisaev/multivi_tools_splicing/results/imputation/batch_20250524_144011/figures"  # Output directory for plots
+    CSV  = "/gpfs/commons/home/kisaev/multivi_tools_splicing/results/imputation/batch_20250526_043722/consolidated_imputation_results.csv"
+    OUTD = "/gpfs/commons/home/kisaev/multivi_tools_splicing/results/imputation/batch_20250526_043722/figures"  # Output directory for plots
     
     # Create output directory if it doesn't exist
     os.makedirs(OUTD, exist_ok=True)
@@ -142,8 +142,10 @@ if __name__ == "__main__":
     # All models in your dataset
     models_to_plot = [
         "Splice-VI(Binomial Z=20)",
+        "Splice-VI(Binomial Z=30)",
         "Splice-VI(Binomial Z=40)", 
         "Splice-VI(Beta-Binomial Z=20)",
+        "Splice-VI(Beta-Binomial Z=30)",
         "Splice-VI(Beta-Binomial Z=40)",
     ]
     

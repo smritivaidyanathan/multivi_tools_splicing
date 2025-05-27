@@ -33,12 +33,9 @@ chmod +x "${BATCH_RUN_DIR}/job_template.sh"
 # Define the missing percentage pairs
 MISSING_PAIRS=(
     "0.5,0.5"   # Both high
-    "0.3,0.3"   # Both medium
-    "0.1,0.1"   # Both low
-    "0.1,0.0"   # RNA only
-    "0.0,0.1"   # Splice only  
-    "0.0,0.3"   # Splice medium
-    "0.3,0.0"   # RNA medium
+    "0.15,0.15"   # Both medium
+    "0.0,0.15"     # Splice medium
+    "0.15,0.0"   # RNA medium
     "0.0,0.5"   # Splice high
     "0.5,0.0"   # RNA high
 )
