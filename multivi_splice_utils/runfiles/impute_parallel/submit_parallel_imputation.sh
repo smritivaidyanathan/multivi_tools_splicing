@@ -32,15 +32,15 @@ chmod +x "${BATCH_RUN_DIR}/job_template.sh"
 
 # Define the missing percentage pairs
 MISSING_PAIRS=(
+    "0.5,0.5"   # Both high
+    "0.3,0.3"   # Both medium
+    "0.1,0.1"   # Both low
     "0.1,0.0"   # RNA only
     "0.0,0.1"   # Splice only  
-    "0.1,0.1"   # Both low
     "0.0,0.3"   # Splice medium
     "0.3,0.0"   # RNA medium
-    "0.3,0.3"   # Both medium
     "0.0,0.5"   # Splice high
     "0.5,0.0"   # RNA high
-    "0.5,0.5"   # Both high
 )
 
 # Submit one job per missing condition
@@ -57,7 +57,7 @@ for pair in "${MISSING_PAIRS[@]}"; do
     sbatch --job-name="${job_name}" \
            --output="${job_dir}/slurm_%j.out" \
            --error="${job_dir}/slurm_%j.err" \
-           --mem=200G \
+           --mem=320G \
            --partition=gpu \
            --gres=gpu:1 \
            --time=6:00:00 \

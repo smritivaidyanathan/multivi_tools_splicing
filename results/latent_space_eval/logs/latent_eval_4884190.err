@@ -1,0 +1,8 @@
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/mudata/_core/mudata.py:1531: FutureWarning: From 0.4 .update() will not pull obs/var columns from individual modalities by default anymore. Set mudata.set_options(pull_on_update=False) to adopt the new behaviour, which will become the default. Use new pull_obs/pull_var and push_obs/push_var methods for more flexibility.
+  self._update_attr("var", axis=0, join_common=join_common)
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/mudata/_core/mudata.py:1429: FutureWarning: From 0.4 .update() will not pull obs/var columns from individual modalities by default anymore. Set mudata.set_options(pull_on_update=False) to adopt the new behaviour, which will become the default. Use new pull_obs/pull_var and push_obs/push_var methods for more flexibility.
+  self._update_attr("obs", axis=1, join_common=join_common)
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/lightning/fabric/plugins/environments/slurm.py:204: The `srun` command is available on your system but is not used. HINT: If your intention is to run Lightning on SLURM, prepend your python command with `srun` like so: srun python /gpfs/commons/home/kisaev/multivi_tools_splicing/mul ...
+/gpfs/commons/home/kisaev/scvi-tools-splicing/src/scvi/data/fields/_base_field.py:63: UserWarning: adata.layers[junc_ratio] does not contain unnormalized count data. Are you sure this is what you want?
+  self.validate_field(adata)
+slurmstepd: error: *** JOB 4884190 ON ne1dg6-010 CANCELLED AT 2025-05-27T03:11:39 ***

@@ -62,18 +62,21 @@ np.random.seed(RANDOM_SEED)
 random.seed(RANDOM_SEED)
 
 # Path to the MuData and the single model
-MUDATA_PATH = os.environ.get(
-    "MUDATA_PATH",
-    "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu"
-)
-MODEL_NAME = "SpliceVI_SUBSET_88EPOCHS_LINEARDECODER_PARTIALENCODER"
-MODEL_PATH = "/gpfs/commons/home/svaidyanathan/multi_vi_splice_runs/MultiVISpliceTraining_20250522_132915_job4818968/models"
+USE_FULL_DATASET = True
+FULL_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/aligned__ge_splice_combined_20250513_035938.h5mu" # all 5k genes here...
+SUBSET_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu"
+
+_default_mudata = FULL_PATH if USE_FULL_DATASET else SUBSET_PATH
+MUDATA_PATH = os.environ.get("MUDATA_PATH", _default_mudata)
+MODEL_NAME = "MultiVISpliceTraining_20250526_195717_job4883643"
+MODEL_PATH = "/gpfs/commons/home/kisaev/multi_vi_splice_runs/MultiVISpliceTraining_20250526_195717_job4883643/models"
 
 LATENT_EVAL_OUTDIR = os.environ.get("LATENT_EVAL_OUTDIR", "./latent_eval_output")
 OVERALL_DIR    = os.path.join(LATENT_EVAL_OUTDIR, "overall")
 SUBCLUSTER_DIR = os.path.join(LATENT_EVAL_OUTDIR, "subcluster_eval")
 CLASSIF_DIR    = os.path.join(LATENT_EVAL_OUTDIR, "cell_type_classification")
 NEIGHBOR_DIR   = os.path.join(LATENT_EVAL_OUTDIR, "local_neighborhood_analysis")
+
 # make directories
 for base in [OVERALL_DIR, SUBCLUSTER_DIR, CLASSIF_DIR, NEIGHBOR_DIR]:
     os.makedirs(os.path.join(base, "figures"), exist_ok=True)
@@ -85,7 +88,7 @@ os.makedirs(os.path.join(SUBCLUSTER_DIR, "figures", "umaps"), exist_ok=True)
 # Parameters
 TOP_N_CELLTYPES   = 5
 NEIGHBOR_K         = [30]
-CLUSTER_NUMBERS    = [3, 5, 7, 10, 15, 20]
+CLUSTER_NUMBERS    = [3, 5, 10, 15, 20]
 TARGET_CELL_TYPES  = ["Excitatory Neurons", "MICROGLIA"]
 CELL_TYPE_COLUMN   = "broad_cell_type"
 UMAP_N_NEIGHBORS   = 15  # neighbors for UMAP
@@ -194,13 +197,7 @@ def plot_subcluster_umap(latent, true_labels, pred_labels_dict, out_prefix, fig_
         fig.savefig(os.path.join(fig_dir, fname), dpi=300, bbox_inches='tight')
         plt.close(fig)
 
-# ----------------------------------------------------------------------------
-# 1. Overall latent eval: UMAP + silhouette
-# ----------------------------------------------------------------------------
-# This section computes the joint, expression-specific, and splicing-specific latent
-# embeddings for all cells, generates UMAP visualizations colored by cell type, and
-# calculates silhouette scores to assess cluster separation in each latent space.
-
+# Load dataset and model 
 logger.info("[Overall] Computing latents & plots...")
 mdata = mu.read_h5mu(MUDATA_PATH)
 # ensure psi_mask
@@ -209,12 +206,250 @@ cluster = sp.layers['cell_by_cluster_matrix']
 if not sparse.isspmatrix_csr(cluster): cluster = sparse.csr_matrix(cluster)
 mask = cluster.copy(); mask.data = np.ones_like(cluster.data, dtype=np.uint8)
 sp.layers['psi_mask'] = mask
+
 # load model once
 model = scvi.model.MULTIVISPLICE.load(MODEL_PATH, adata=mdata)
+
 # compute representations
 Z_joint = model.get_latent_representation()
-Z_ge    = model.get_latent_representation(modality='expression')
-Z_as    = model.get_latent_representation(modality='splicing')
+Z_ge = model.get_latent_representation(modality='expression')
+Z_as = model.get_latent_representation(modality='splicing')
+
+# ----------------------------------------------------------------------------
+# 5. Gene vs Junction Concentration Analysis
+# ----------------------------------------------------------------------------
+# This section extracts and analyzes the learned concentration parameters
+# for genes and junctions from the trained MULTIVISPLICE model.
+
+logger.info("[Concentration] Analyzing learned concentration parameters...")
+
+# Create concentration analysis directory
+CONCENTRATION_DIR = os.path.join(LATENT_EVAL_OUTDIR, "concentration_analysis")
+os.makedirs(os.path.join(CONCENTRATION_DIR, "figures"), exist_ok=True)
+os.makedirs(os.path.join(CONCENTRATION_DIR, "csv_files"), exist_ok=True)
+
+def extract_concentration_parameters(model):
+    """Extract concentration parameters from the trained model."""
+    concentration_data = {}
+    
+    # Get the model's module (the actual PyTorch model)
+    module = model.module
+    
+    # Extract gene concentrations (typically log_phi_g or similar)
+    if hasattr(module, 'log_phi_g'):
+        gene_log_concentrations = module.log_phi_g.detach().cpu().numpy()
+        concentration_data['gene_log_phi'] = gene_log_concentrations
+        concentration_data['gene_phi'] = np.exp(gene_log_concentrations)
+        logger.info(f"Found gene concentrations: {len(gene_log_concentrations)} genes")
+    
+    # Extract junction concentrations (log_phi_j)
+    if hasattr(module, 'log_phi_j'):
+        junction_log_concentrations = module.log_phi_j.detach().cpu().numpy()
+        concentration_data['junction_log_phi'] = junction_log_concentrations
+        concentration_data['junction_phi'] = np.exp(junction_log_concentrations)
+        logger.info(f"Found junction concentrations: {len(junction_log_concentrations)} junctions")
+    
+    # Look for other potential concentration parameters
+    for name, param in module.named_parameters():
+        if 'phi' in name.lower() and 'log' in name.lower():
+            logger.info(f"Additional concentration parameter found: {name}")
+            concentration_data[name] = param.detach().cpu().numpy()
+    return concentration_data
+
+def analyze_concentrations(concentration_data, out_dir):
+    """Analyze and visualize concentration parameters."""
+    
+    # Extract gene and junction concentrations
+    gene_phi = concentration_data.get('gene_phi')
+    junction_phi = concentration_data.get('junction_phi')
+    gene_log_phi = concentration_data.get('gene_log_phi')
+    junction_log_phi = concentration_data.get('junction_log_phi')
+    
+    results = {}
+    
+    if gene_phi is not None and junction_phi is not None:
+        # Basic statistics
+        stats_data = {
+            'Parameter': ['Gene Concentrations', 'Junction Concentrations'],
+            'Count': [len(gene_phi), len(junction_phi)],
+            'Mean': [np.mean(gene_phi), np.mean(junction_phi)],
+            'Median': [np.median(gene_phi), np.median(junction_phi)],
+            'Std': [np.std(gene_phi), np.std(junction_phi)],
+            'Min': [np.min(gene_phi), np.min(junction_phi)],
+            'Max': [np.max(gene_phi), np.max(junction_phi)],
+            'Q25': [np.percentile(gene_phi, 25), np.percentile(junction_phi, 25)],
+            'Q75': [np.percentile(gene_phi, 75), np.percentile(junction_phi, 75)]
+        }
+        
+        stats_df = pd.DataFrame(stats_data)
+        stats_df.to_csv(os.path.join(out_dir, 'csv_files', 'concentration_statistics.csv'), index=False)
+        results['statistics'] = stats_df
+        
+        # 1. Distribution comparison plots
+        fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+        
+        # Linear scale distributions
+        axes[0,0].hist(gene_phi, bins=50, alpha=0.7, label='Genes', color='blue', density=True)
+        axes[0,0].hist(junction_phi, bins=50, alpha=0.7, label='Junctions', color='red', density=True)
+        axes[0,0].set_xlabel('Concentration (φ)')
+        axes[0,0].set_ylabel('Density')
+        axes[0,0].set_title('Concentration Distributions (Linear Scale)')
+        axes[0,0].legend()
+        
+        # Log scale distributions
+        axes[0,1].hist(gene_phi, bins=50, alpha=0.7, label='Genes', color='blue', density=True)
+        axes[0,1].hist(junction_phi, bins=50, alpha=0.7, label='Junctions', color='red', density=True)
+        axes[0,1].set_xlabel('Concentration (φ)')
+        axes[0,1].set_ylabel('Density')
+        axes[0,1].set_title('Concentration Distributions (Log Scale)')
+        axes[0,1].set_xscale('log')
+        axes[0,1].legend()
+        
+        # Box plots
+        data_for_box = [gene_phi, junction_phi]
+        labels_for_box = ['Genes', 'Junctions']
+        bp = axes[1,0].boxplot(data_for_box, labels=labels_for_box, patch_artist=True)
+        bp['boxes'][0].set_facecolor('blue')
+        bp['boxes'][1].set_facecolor('red')
+        axes[1,0].set_ylabel('Concentration (φ)')
+        axes[1,0].set_title('Concentration Box Plots')
+        axes[1,0].set_yscale('log')
+        
+        # Quantile-Quantile plot
+        from scipy import stats
+        gene_sorted = np.sort(gene_phi)
+        junction_sorted = np.sort(junction_phi)
+        min_len = min(len(gene_sorted), len(junction_sorted))
+        
+        # Sample same number of points for QQ plot
+        gene_sample = np.linspace(0, len(gene_sorted)-1, min_len).astype(int)
+        junction_sample = np.linspace(0, len(junction_sorted)-1, min_len).astype(int)
+        
+        axes[1,1].scatter(gene_sorted[gene_sample], junction_sorted[junction_sample], alpha=0.5)
+        min_val = min(np.min(gene_phi), np.min(junction_phi))
+        max_val = max(np.max(gene_phi), np.max(junction_phi))
+        axes[1,1].plot([min_val, max_val], [min_val, max_val], 'r--', alpha=0.8)
+        axes[1,1].set_xlabel('Gene Concentrations (φ)')
+        axes[1,1].set_ylabel('Junction Concentrations (φ)')
+        axes[1,1].set_title('Q-Q Plot: Genes vs Junctions')
+        axes[1,1].set_xscale('log')
+        axes[1,1].set_yscale('log')
+        
+        plt.tight_layout()
+        fig.savefig(os.path.join(out_dir, 'figures', f'concentration_distributions_{MODEL_NAME}.png'), 
+                   dpi=300, bbox_inches='tight')
+        plt.close(fig)
+        
+        # 2. Ratio analysis
+        if len(gene_phi) == len(junction_phi):
+            ratios = gene_phi / junction_phi
+            results['gene_to_junction_ratio'] = {
+                'mean': np.mean(ratios),
+                'median': np.median(ratios),
+                'std': np.std(ratios)
+            }
+            
+            fig, ax = plt.subplots(figsize=(8, 6))
+            ax.hist(ratios, bins=50, alpha=0.7, color='purple', density=True)
+            ax.axvline(np.mean(ratios), color='red', linestyle='--', label=f'Mean: {np.mean(ratios):.2f}')
+            ax.axvline(np.median(ratios), color='orange', linestyle='--', label=f'Median: {np.median(ratios):.2f}')
+            ax.set_xlabel('Gene/Junction Concentration Ratio')
+            ax.set_ylabel('Density')
+            ax.set_title('Gene to Junction Concentration Ratios')
+            ax.legend()
+            fig.savefig(os.path.join(out_dir, 'figures', f'concentration_ratios_{MODEL_NAME}.png'), 
+                       dpi=300, bbox_inches='tight')
+            plt.close(fig)
+    
+    # 3. Log-space analysis
+    if gene_log_phi is not None and junction_log_phi is not None:
+        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+        
+        # Log concentrations
+        axes[0].hist(gene_log_phi, bins=50, alpha=0.7, label='Genes', color='blue', density=True)
+        axes[0].hist(junction_log_phi, bins=50, alpha=0.7, label='Junctions', color='red', density=True)
+        axes[0].set_xlabel('Log Concentration (log φ)')
+        axes[0].set_ylabel('Density')
+        axes[0].set_title('Log Concentration Distributions')
+        axes[0].legend()
+        
+        # Scatter plot of log concentrations
+        if len(gene_log_phi) == len(junction_log_phi):
+            axes[1].scatter(gene_log_phi, junction_log_phi, alpha=0.5, s=1)
+            axes[1].set_xlabel('Gene Log Concentrations')
+            axes[1].set_ylabel('Junction Log Concentrations')
+            axes[1].set_title('Gene vs Junction Log Concentrations')
+            
+            # Add correlation
+            correlation = np.corrcoef(gene_log_phi, junction_log_phi)[0,1]
+            axes[1].text(0.05, 0.95, f'Correlation: {correlation:.3f}', 
+                        transform=axes[1].transAxes, 
+                        bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+        
+        plt.tight_layout()
+        fig.savefig(os.path.join(out_dir, 'figures', f'log_concentration_analysis_{MODEL_NAME}.png'), 
+                   dpi=300, bbox_inches='tight')
+        plt.close(fig)
+    
+    # 4. Top/bottom concentration analysis
+    if gene_phi is not None:
+        n_top = min(20, len(gene_phi))
+        top_gene_indices = np.argsort(gene_phi)[-n_top:]
+        bottom_gene_indices = np.argsort(gene_phi)[:n_top]
+        
+        gene_analysis = pd.DataFrame({
+            'Gene_Index': list(range(len(gene_phi))),
+            'Concentration': gene_phi,
+            'Log_Concentration': gene_log_phi if gene_log_phi is not None else np.log(gene_phi),
+            'Rank': np.argsort(np.argsort(gene_phi)) + 1
+        })
+        gene_analysis.to_csv(os.path.join(out_dir, 'csv_files', 'gene_concentrations.csv'), index=False)
+    
+    if junction_phi is not None:
+        n_top = min(20, len(junction_phi))
+        top_junction_indices = np.argsort(junction_phi)[-n_top:]
+        bottom_junction_indices = np.argsort(junction_phi)[:n_top]
+        
+        junction_analysis = pd.DataFrame({
+            'Junction_Index': list(range(len(junction_phi))),
+            'Concentration': junction_phi,
+            'Log_Concentration': junction_log_phi if junction_log_phi is not None else np.log(junction_phi),
+            'Rank': np.argsort(np.argsort(junction_phi)) + 1
+        })
+        junction_analysis.to_csv(os.path.join(out_dir, 'csv_files', 'junction_concentrations.csv'), index=False)
+    
+    return results
+
+# Extract and analyze concentrations
+concentration_data = extract_concentration_parameters(model)
+
+if concentration_data:
+    analysis_results = analyze_concentrations(concentration_data, CONCENTRATION_DIR)
+    logger.info("[Concentration] Analysis complete. Results saved to concentration_analysis/")
+    
+    # Print summary statistics
+    if 'statistics' in analysis_results:
+        print("\nConcentration Parameter Summary:")
+        print(analysis_results['statistics'].to_string(index=False))
+    
+    if 'gene_to_junction_ratio' in analysis_results:
+        ratio_stats = analysis_results['gene_to_junction_ratio']
+        print(f"\nGene/Junction Concentration Ratio Stats:")
+        print(f"  Mean: {ratio_stats['mean']:.3f}")
+        print(f"  Median: {ratio_stats['median']:.3f}")
+        print(f"  Std: {ratio_stats['std']:.3f}")
+else:
+    logger.warning("[Concentration] No concentration parameters found in model")
+
+logger.info("[Concentration] Complete")
+
+# ----------------------------------------------------------------------------
+# 1. Overall latent eval: UMAP + silhouette
+# ----------------------------------------------------------------------------
+# This section computes the joint, expression-specific, and splicing-specific latent
+# embeddings for all cells, generates UMAP visualizations colored by cell type, and
+# calculates silhouette scores to assess cluster separation in each latent space.
+
 # UMAP & silhouette
 groups = {'joint': Z_joint, 'expression': Z_ge, 'splicing': Z_as}
 labels = mdata['rna'].obs[CELL_TYPE_COLUMN].astype('category').cat.codes.values

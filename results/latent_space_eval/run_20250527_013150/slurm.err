@@ -1,0 +1,439 @@
+INFO:__main__:[Overall] Computing latents & plots...
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/lightning/fabric/plugins/environments/slurm.py:204: The `srun` command is available on your system but is not used. HINT: If your intention is to run Lightning on SLURM, prepend your python command with `srun` like so: srun python /gpfs/commons/home/kisaev/multivi_tools_splicing/mul ...
+/gpfs/commons/home/kisaev/scvi-tools-splicing/src/scvi/data/fields/_base_field.py:63: UserWarning: adata.layers[junc_ratio] does not contain unnormalized count data. Are you sure this is what you want?
+  self.validate_field(adata)
+INFO:__main__:UMAP: joint, colored by broad_cell_type
+/gpfs/commons/home/kisaev/multivi_tools_splicing/multivi_splice_utils/runfiles/latent_space_eval.py:159: MatplotlibDeprecationWarning: The get_cmap function was deprecated in Matplotlib 3.7 and will be removed in 3.11. Use ``matplotlib.colormaps[name]`` or ``matplotlib.colormaps.get_cmap()`` or ``pyplot.get_cmap()`` instead.
+  cmap_mod = cm.get_cmap('tab20', len(top))
+... storing 'group_highlighted' as categorical
+INFO:__main__:UMAP: expression, colored by broad_cell_type
+/gpfs/commons/home/kisaev/multivi_tools_splicing/multivi_splice_utils/runfiles/latent_space_eval.py:159: MatplotlibDeprecationWarning: The get_cmap function was deprecated in Matplotlib 3.7 and will be removed in 3.11. Use ``matplotlib.colormaps[name]`` or ``matplotlib.colormaps.get_cmap()`` or ``pyplot.get_cmap()`` instead.
+  cmap_mod = cm.get_cmap('tab20', len(top))
+... storing 'group_highlighted' as categorical
+INFO:__main__:UMAP: splicing, colored by broad_cell_type
+/gpfs/commons/home/kisaev/multivi_tools_splicing/multivi_splice_utils/runfiles/latent_space_eval.py:159: MatplotlibDeprecationWarning: The get_cmap function was deprecated in Matplotlib 3.7 and will be removed in 3.11. Use ``matplotlib.colormaps[name]`` or ``matplotlib.colormaps.get_cmap()`` or ``pyplot.get_cmap()`` instead.
+  cmap_mod = cm.get_cmap('tab20', len(top))
+... storing 'group_highlighted' as categorical
+/gpfs/commons/home/kisaev/multivi_tools_splicing/multivi_splice_utils/runfiles/latent_space_eval.py:362: FutureWarning: 
+
+Passing `palette` without assigning `hue` is deprecated and will be removed in v0.14.0. Assign the `x` variable to `hue` and set `legend=False` for the same effect.
+
+  sns.barplot(data=df_sil, x='rep', y='silhouette_score', palette='tab10', ax=ax)
+INFO:__main__:[Overall] Done
+INFO:__main__:[Subcluster] Evaluating reproducibility...
+INFO:__main__:Generating subcluster UMAPs for Excitatory_Neurons_k3...
+INFO:__main__:Plotting true labels on joint UMAP for Excitatory_Neurons_k3
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k3_true_labels_on_joint_umap.pdf
+INFO:__main__:Plotting joint predicted labels on joint UMAP for Excitatory_Neurons_k3
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k3_joint_pred_on_joint_umap.pdf
+INFO:__main__:Plotting expression predicted labels on expression UMAP for Excitatory_Neurons_k3
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k3_expression_pred_on_expression_umap.pdf
+INFO:__main__:Plotting splicing predicted labels on splicing UMAP for Excitatory_Neurons_k3
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k3_splicing_pred_on_splicing_umap.pdf
+INFO:__main__:Plotting random predicted labels on random UMAP for Excitatory_Neurons_k3
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k3_random_pred_on_random_umap.pdf
+INFO:__main__:Finished generating subcluster UMAPs for Excitatory_Neurons_k3. Plots saved to /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps
+INFO:__main__:Generating subcluster UMAPs for Excitatory_Neurons_k5...
+INFO:__main__:Plotting true labels on joint UMAP for Excitatory_Neurons_k5
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k5_true_labels_on_joint_umap.pdf
+INFO:__main__:Plotting joint predicted labels on joint UMAP for Excitatory_Neurons_k5
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k5_joint_pred_on_joint_umap.pdf
+INFO:__main__:Plotting expression predicted labels on expression UMAP for Excitatory_Neurons_k5
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k5_expression_pred_on_expression_umap.pdf
+INFO:__main__:Plotting splicing predicted labels on splicing UMAP for Excitatory_Neurons_k5
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k5_splicing_pred_on_splicing_umap.pdf
+INFO:__main__:Plotting random predicted labels on random UMAP for Excitatory_Neurons_k5
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k5_random_pred_on_random_umap.pdf
+INFO:__main__:Finished generating subcluster UMAPs for Excitatory_Neurons_k5. Plots saved to /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps
+INFO:__main__:Generating subcluster UMAPs for Excitatory_Neurons_k10...
+INFO:__main__:Plotting true labels on joint UMAP for Excitatory_Neurons_k10
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k10_true_labels_on_joint_umap.pdf
+INFO:__main__:Plotting joint predicted labels on joint UMAP for Excitatory_Neurons_k10
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k10_joint_pred_on_joint_umap.pdf
+INFO:__main__:Plotting expression predicted labels on expression UMAP for Excitatory_Neurons_k10
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k10_expression_pred_on_expression_umap.pdf
+INFO:__main__:Plotting splicing predicted labels on splicing UMAP for Excitatory_Neurons_k10
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k10_splicing_pred_on_splicing_umap.pdf
+INFO:__main__:Plotting random predicted labels on random UMAP for Excitatory_Neurons_k10
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k10_random_pred_on_random_umap.pdf
+INFO:__main__:Finished generating subcluster UMAPs for Excitatory_Neurons_k10. Plots saved to /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps
+INFO:__main__:Generating subcluster UMAPs for Excitatory_Neurons_k15...
+INFO:__main__:Plotting true labels on joint UMAP for Excitatory_Neurons_k15
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k15_true_labels_on_joint_umap.pdf
+INFO:__main__:Plotting joint predicted labels on joint UMAP for Excitatory_Neurons_k15
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k15_joint_pred_on_joint_umap.pdf
+INFO:__main__:Plotting expression predicted labels on expression UMAP for Excitatory_Neurons_k15
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k15_expression_pred_on_expression_umap.pdf
+INFO:__main__:Plotting splicing predicted labels on splicing UMAP for Excitatory_Neurons_k15
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k15_splicing_pred_on_splicing_umap.pdf
+INFO:__main__:Plotting random predicted labels on random UMAP for Excitatory_Neurons_k15
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k15_random_pred_on_random_umap.pdf
+INFO:__main__:Finished generating subcluster UMAPs for Excitatory_Neurons_k15. Plots saved to /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps
+INFO:__main__:Generating subcluster UMAPs for Excitatory_Neurons_k20...
+INFO:__main__:Plotting true labels on joint UMAP for Excitatory_Neurons_k20
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k20_true_labels_on_joint_umap.pdf
+INFO:__main__:Plotting joint predicted labels on joint UMAP for Excitatory_Neurons_k20
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k20_joint_pred_on_joint_umap.pdf
+INFO:__main__:Plotting expression predicted labels on expression UMAP for Excitatory_Neurons_k20
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k20_expression_pred_on_expression_umap.pdf
+INFO:__main__:Plotting splicing predicted labels on splicing UMAP for Excitatory_Neurons_k20
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k20_splicing_pred_on_splicing_umap.pdf
+INFO:__main__:Plotting random predicted labels on random UMAP for Excitatory_Neurons_k20
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Excitatory_Neurons_k20_random_pred_on_random_umap.pdf
+INFO:__main__:Finished generating subcluster UMAPs for Excitatory_Neurons_k20. Plots saved to /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps
+INFO:__main__:Generating subcluster UMAPs for Inhibitory_Neurons_k3...
+INFO:__main__:Plotting true labels on joint UMAP for Inhibitory_Neurons_k3
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k3_true_labels_on_joint_umap.pdf
+INFO:__main__:Plotting joint predicted labels on joint UMAP for Inhibitory_Neurons_k3
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k3_joint_pred_on_joint_umap.pdf
+INFO:__main__:Plotting expression predicted labels on expression UMAP for Inhibitory_Neurons_k3
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k3_expression_pred_on_expression_umap.pdf
+INFO:__main__:Plotting splicing predicted labels on splicing UMAP for Inhibitory_Neurons_k3
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k3_splicing_pred_on_splicing_umap.pdf
+INFO:__main__:Plotting random predicted labels on random UMAP for Inhibitory_Neurons_k3
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k3_random_pred_on_random_umap.pdf
+INFO:__main__:Finished generating subcluster UMAPs for Inhibitory_Neurons_k3. Plots saved to /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps
+INFO:__main__:Generating subcluster UMAPs for Inhibitory_Neurons_k5...
+INFO:__main__:Plotting true labels on joint UMAP for Inhibitory_Neurons_k5
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k5_true_labels_on_joint_umap.pdf
+INFO:__main__:Plotting joint predicted labels on joint UMAP for Inhibitory_Neurons_k5
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k5_joint_pred_on_joint_umap.pdf
+INFO:__main__:Plotting expression predicted labels on expression UMAP for Inhibitory_Neurons_k5
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k5_expression_pred_on_expression_umap.pdf
+INFO:__main__:Plotting splicing predicted labels on splicing UMAP for Inhibitory_Neurons_k5
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k5_splicing_pred_on_splicing_umap.pdf
+INFO:__main__:Plotting random predicted labels on random UMAP for Inhibitory_Neurons_k5
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k5_random_pred_on_random_umap.pdf
+INFO:__main__:Finished generating subcluster UMAPs for Inhibitory_Neurons_k5. Plots saved to /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps
+INFO:__main__:Generating subcluster UMAPs for Inhibitory_Neurons_k10...
+INFO:__main__:Plotting true labels on joint UMAP for Inhibitory_Neurons_k10
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k10_true_labels_on_joint_umap.pdf
+INFO:__main__:Plotting joint predicted labels on joint UMAP for Inhibitory_Neurons_k10
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k10_joint_pred_on_joint_umap.pdf
+INFO:__main__:Plotting expression predicted labels on expression UMAP for Inhibitory_Neurons_k10
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k10_expression_pred_on_expression_umap.pdf
+INFO:__main__:Plotting splicing predicted labels on splicing UMAP for Inhibitory_Neurons_k10
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k10_splicing_pred_on_splicing_umap.pdf
+INFO:__main__:Plotting random predicted labels on random UMAP for Inhibitory_Neurons_k10
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k10_random_pred_on_random_umap.pdf
+INFO:__main__:Finished generating subcluster UMAPs for Inhibitory_Neurons_k10. Plots saved to /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps
+INFO:__main__:Generating subcluster UMAPs for Inhibitory_Neurons_k15...
+INFO:__main__:Plotting true labels on joint UMAP for Inhibitory_Neurons_k15
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k15_true_labels_on_joint_umap.pdf
+INFO:__main__:Plotting joint predicted labels on joint UMAP for Inhibitory_Neurons_k15
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k15_joint_pred_on_joint_umap.pdf
+INFO:__main__:Plotting expression predicted labels on expression UMAP for Inhibitory_Neurons_k15
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k15_expression_pred_on_expression_umap.pdf
+INFO:__main__:Plotting splicing predicted labels on splicing UMAP for Inhibitory_Neurons_k15
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k15_splicing_pred_on_splicing_umap.pdf
+INFO:__main__:Plotting random predicted labels on random UMAP for Inhibitory_Neurons_k15
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k15_random_pred_on_random_umap.pdf
+INFO:__main__:Finished generating subcluster UMAPs for Inhibitory_Neurons_k15. Plots saved to /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps
+INFO:__main__:Generating subcluster UMAPs for Inhibitory_Neurons_k20...
+INFO:__main__:Plotting true labels on joint UMAP for Inhibitory_Neurons_k20
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k20_true_labels_on_joint_umap.pdf
+INFO:__main__:Plotting joint predicted labels on joint UMAP for Inhibitory_Neurons_k20
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k20_joint_pred_on_joint_umap.pdf
+INFO:__main__:Plotting expression predicted labels on expression UMAP for Inhibitory_Neurons_k20
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k20_expression_pred_on_expression_umap.pdf
+INFO:__main__:Plotting splicing predicted labels on splicing UMAP for Inhibitory_Neurons_k20
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k20_splicing_pred_on_splicing_umap.pdf
+INFO:__main__:Plotting random predicted labels on random UMAP for Inhibitory_Neurons_k20
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_Inhibitory_Neurons_k20_random_pred_on_random_umap.pdf
+INFO:__main__:Finished generating subcluster UMAPs for Inhibitory_Neurons_k20. Plots saved to /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps
+INFO:__main__:Generating subcluster UMAPs for MICROGLIA_k3...
+INFO:__main__:Plotting true labels on joint UMAP for MICROGLIA_k3
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k3_true_labels_on_joint_umap.pdf
+INFO:__main__:Plotting joint predicted labels on joint UMAP for MICROGLIA_k3
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k3_joint_pred_on_joint_umap.pdf
+INFO:__main__:Plotting expression predicted labels on expression UMAP for MICROGLIA_k3
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k3_expression_pred_on_expression_umap.pdf
+INFO:__main__:Plotting splicing predicted labels on splicing UMAP for MICROGLIA_k3
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k3_splicing_pred_on_splicing_umap.pdf
+INFO:__main__:Plotting random predicted labels on random UMAP for MICROGLIA_k3
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k3_random_pred_on_random_umap.pdf
+INFO:__main__:Finished generating subcluster UMAPs for MICROGLIA_k3. Plots saved to /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps
+INFO:__main__:Generating subcluster UMAPs for MICROGLIA_k5...
+INFO:__main__:Plotting true labels on joint UMAP for MICROGLIA_k5
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k5_true_labels_on_joint_umap.pdf
+INFO:__main__:Plotting joint predicted labels on joint UMAP for MICROGLIA_k5
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k5_joint_pred_on_joint_umap.pdf
+INFO:__main__:Plotting expression predicted labels on expression UMAP for MICROGLIA_k5
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k5_expression_pred_on_expression_umap.pdf
+INFO:__main__:Plotting splicing predicted labels on splicing UMAP for MICROGLIA_k5
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k5_splicing_pred_on_splicing_umap.pdf
+INFO:__main__:Plotting random predicted labels on random UMAP for MICROGLIA_k5
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k5_random_pred_on_random_umap.pdf
+INFO:__main__:Finished generating subcluster UMAPs for MICROGLIA_k5. Plots saved to /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps
+INFO:__main__:Generating subcluster UMAPs for MICROGLIA_k10...
+INFO:__main__:Plotting true labels on joint UMAP for MICROGLIA_k10
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k10_true_labels_on_joint_umap.pdf
+INFO:__main__:Plotting joint predicted labels on joint UMAP for MICROGLIA_k10
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k10_joint_pred_on_joint_umap.pdf
+INFO:__main__:Plotting expression predicted labels on expression UMAP for MICROGLIA_k10
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k10_expression_pred_on_expression_umap.pdf
+INFO:__main__:Plotting splicing predicted labels on splicing UMAP for MICROGLIA_k10
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k10_splicing_pred_on_splicing_umap.pdf
+INFO:__main__:Plotting random predicted labels on random UMAP for MICROGLIA_k10
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k10_random_pred_on_random_umap.pdf
+INFO:__main__:Finished generating subcluster UMAPs for MICROGLIA_k10. Plots saved to /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps
+INFO:__main__:Generating subcluster UMAPs for MICROGLIA_k15...
+INFO:__main__:Plotting true labels on joint UMAP for MICROGLIA_k15
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k15_true_labels_on_joint_umap.pdf
+INFO:__main__:Plotting joint predicted labels on joint UMAP for MICROGLIA_k15
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k15_joint_pred_on_joint_umap.pdf
+INFO:__main__:Plotting expression predicted labels on expression UMAP for MICROGLIA_k15
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k15_expression_pred_on_expression_umap.pdf
+INFO:__main__:Plotting splicing predicted labels on splicing UMAP for MICROGLIA_k15
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k15_splicing_pred_on_splicing_umap.pdf
+INFO:__main__:Plotting random predicted labels on random UMAP for MICROGLIA_k15
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k15_random_pred_on_random_umap.pdf
+INFO:__main__:Finished generating subcluster UMAPs for MICROGLIA_k15. Plots saved to /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps
+INFO:__main__:Generating subcluster UMAPs for MICROGLIA_k20...
+INFO:__main__:Plotting true labels on joint UMAP for MICROGLIA_k20
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k20_true_labels_on_joint_umap.pdf
+INFO:__main__:Plotting joint predicted labels on joint UMAP for MICROGLIA_k20
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k20_joint_pred_on_joint_umap.pdf
+INFO:__main__:Plotting expression predicted labels on expression UMAP for MICROGLIA_k20
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k20_expression_pred_on_expression_umap.pdf
+INFO:__main__:Plotting splicing predicted labels on splicing UMAP for MICROGLIA_k20
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k20_splicing_pred_on_splicing_umap.pdf
+INFO:__main__:Plotting random predicted labels on random UMAP for MICROGLIA_k20
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/anndata/_core/anndata.py:401: FutureWarning: The dtype argument is deprecated and will be removed in late 2024.
+  warnings.warn(
+INFO:__main__:Saved UMAP: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps/MultiVISpliceTraining_20250526_180124_job4883640_MICROGLIA_k20_random_pred_on_random_umap.pdf
+INFO:__main__:Finished generating subcluster UMAPs for MICROGLIA_k20. Plots saved to /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_013150/subcluster_eval/figures/umaps
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:469: ConvergenceWarning: lbfgs failed to converge (status=1):
+STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT.
+
+Increase the number of iterations (max_iter) or scale the data as shown in:
+    https://scikit-learn.org/stable/modules/preprocessing.html
+Please also refer to the documentation for alternative solver options:
+    https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression
+  n_iter_i = _check_optimize_result(
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:469: ConvergenceWarning: lbfgs failed to converge (status=1):
+STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT.
+
+Increase the number of iterations (max_iter) or scale the data as shown in:
+    https://scikit-learn.org/stable/modules/preprocessing.html
+Please also refer to the documentation for alternative solver options:
+    https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression
+  n_iter_i = _check_optimize_result(
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:469: ConvergenceWarning: lbfgs failed to converge (status=1):
+STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT.
+
+Increase the number of iterations (max_iter) or scale the data as shown in:
+    https://scikit-learn.org/stable/modules/preprocessing.html
+Please also refer to the documentation for alternative solver options:
+    https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression
+  n_iter_i = _check_optimize_result(
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:469: ConvergenceWarning: lbfgs failed to converge (status=1):
+STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT.
+
+Increase the number of iterations (max_iter) or scale the data as shown in:
+    https://scikit-learn.org/stable/modules/preprocessing.html
+Please also refer to the documentation for alternative solver options:
+    https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression
+  n_iter_i = _check_optimize_result(
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:469: ConvergenceWarning: lbfgs failed to converge (status=1):
+STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT.
+
+Increase the number of iterations (max_iter) or scale the data as shown in:
+    https://scikit-learn.org/stable/modules/preprocessing.html
+Please also refer to the documentation for alternative solver options:
+    https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression
+  n_iter_i = _check_optimize_result(
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:469: ConvergenceWarning: lbfgs failed to converge (status=1):
+STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT.
+
+Increase the number of iterations (max_iter) or scale the data as shown in:
+    https://scikit-learn.org/stable/modules/preprocessing.html
+Please also refer to the documentation for alternative solver options:
+    https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression
+  n_iter_i = _check_optimize_result(
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:469: ConvergenceWarning: lbfgs failed to converge (status=1):
+STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT.
+
+Increase the number of iterations (max_iter) or scale the data as shown in:
+    https://scikit-learn.org/stable/modules/preprocessing.html
+Please also refer to the documentation for alternative solver options:
+    https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression
+  n_iter_i = _check_optimize_result(
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:469: ConvergenceWarning: lbfgs failed to converge (status=1):
+STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT.
+
+Increase the number of iterations (max_iter) or scale the data as shown in:
+    https://scikit-learn.org/stable/modules/preprocessing.html
+Please also refer to the documentation for alternative solver options:
+    https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression
+  n_iter_i = _check_optimize_result(
+INFO:__main__:[Subcluster] Done
+INFO:__main__:[Classification] Starting multiclass classification...
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:1256: FutureWarning: 'multi_class' was deprecated in version 1.5 and will be removed in 1.7. Use OneVsRestClassifier(LogisticRegression(..)) instead. Leave it to its default value to avoid this warning.
+  warnings.warn(
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:1256: FutureWarning: 'multi_class' was deprecated in version 1.5 and will be removed in 1.7. Use OneVsRestClassifier(LogisticRegression(..)) instead. Leave it to its default value to avoid this warning.
+  warnings.warn(
+/gpfs/commons/home/kisaev/miniconda3/envs/scvi-env/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:1256: FutureWarning: 'multi_class' was deprecated in version 1.5 and will be removed in 1.7. Use OneVsRestClassifier(LogisticRegression(..)) instead. Leave it to its default value to avoid this warning.
+  warnings.warn(
+/gpfs/commons/home/kisaev/multivi_tools_splicing/multivi_splice_utils/runfiles/latent_space_eval.py:651: UserWarning: set_ticklabels() should only be used with a fixed number of ticks, i.e. after set_ticks() or using a FixedLocator.
+  ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+/gpfs/commons/home/kisaev/multivi_tools_splicing/multivi_splice_utils/runfiles/latent_space_eval.py:651: UserWarning: set_ticklabels() should only be used with a fixed number of ticks, i.e. after set_ticks() or using a FixedLocator.
+  ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+/gpfs/commons/home/kisaev/multivi_tools_splicing/multivi_splice_utils/runfiles/latent_space_eval.py:651: UserWarning: set_ticklabels() should only be used with a fixed number of ticks, i.e. after set_ticks() or using a FixedLocator.
+  ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+/gpfs/commons/home/kisaev/multivi_tools_splicing/multivi_splice_utils/runfiles/latent_space_eval.py:651: UserWarning: set_ticklabels() should only be used with a fixed number of ticks, i.e. after set_ticks() or using a FixedLocator.
+  ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+INFO:__main__:[Classification] Complete
+INFO:__main__:[Neighborhood] Computing overlap scores...
+INFO:__main__:[Neighborhood] Spearman ρ (S_GE vs S_AS): 0.023, p-value: 2.79e-19
+INFO:__main__:UMAP: Z_joint_S_GE, colored by S_GE
+INFO:__main__:UMAP: Z_joint_S_AS, colored by S_AS
+INFO:__main__:[Neighborhood] Complete

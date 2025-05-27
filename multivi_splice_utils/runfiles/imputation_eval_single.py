@@ -325,8 +325,10 @@ def define_models():
     return {
         "Splice-VI(Binomial Z=20)": lambda md: build(md, 20, "binomial"),
         "Splice-VI(Binomial Z=40)": lambda md: build(md, 40, "binomial"),
+        "Splice-VI(Binomial Z=30)": lambda md: build(md, 30, "binomial"),
         "Splice-VI(Beta-Binomial Z=20)": lambda md: build(md, 20, "beta_binomial"),
-        "Splice-VI(Beta-Binomial Z=40)": lambda md: build(md, 40, "beta_binomial")
+        "Splice-VI(Beta-Binomial Z=40)": lambda md: build(md, 40, "beta_binomial"),
+        "Splice-VI(Beta-Binomial Z=30)": lambda md: build(md, 30, "beta_binomial"),
     }
 
 
@@ -370,7 +372,7 @@ def main():
         print(f"  * Training {name} …", flush=True)
         model = setup_fn(mdata)
         print("    - calling model.train()", flush=True)
-        model.train(lr=1e-4, max_epochs=50, batch_size=256, 
+        model.train(lr=1e-3, max_epochs=50, batch_size=256, 
                    n_epochs_kl_warmup=10, lr_scheduler_type="step", 
                    step_size=5, lr_factor=0.5)
         print("    - training complete", flush=True)

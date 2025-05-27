@@ -5,3 +5,4 @@ imputed_dfs.h5
 wandb/*
 models/*
 results/imputation/*
+results/latent_space_eval/*

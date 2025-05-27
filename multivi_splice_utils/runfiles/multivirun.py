@@ -248,6 +248,122 @@ X = model.adata["splicing"].layers["junc_ratio"]
 print(X)
 C = model.adata["splicing"].layers[ac_key]
 
+print("\n" + "="*80)
+print("🏗️  MODEL ARCHITECTURE INSPECTION")
+print("="*80)
+
+# ========================================
+# 1. Basic Model Info
+# ========================================
+print("\n1️⃣ BASIC MODEL INFO:")
+print(f"Model type: {type(model).__name__}")
+print(f"Model class: {type(model.module).__name__}")
+print(f"Device: {next(model.module.parameters()).device}")
+
+# ========================================
+# 2. Input/Output Dimensions
+# ========================================
+print("\n2️⃣ INPUT/OUTPUT DIMENSIONS:")
+print(f"Number of genes: {model.module.n_input_genes}")
+print(f"Number of junctions: {model.module.n_input_junctions}")
+print(f"Latent dimensions: {model.module.n_latent}")
+print(f"Hidden dimensions: {model.module.n_hidden}")
+print(f"Batch size (n_batch): {model.module.n_batch}")
+
+# ========================================
+# 3. Architecture Components
+# ========================================
+print("\n3️⃣ ARCHITECTURE COMPONENTS:")
+print(f"Expression architecture: {model.module.expression_architecture if hasattr(model.module, 'expression_architecture') else 'vanilla'}")
+print(f"Splicing architecture: {model.module.splicing_architecture}")
+print(f"Gene likelihood: {model.module.gene_likelihood}")
+print(f"Splicing loss type: {model.module.splicing_loss_type}")
+print(f"Modality weights: {model.module.modality_weights}")
+print(f"Modality penalty: {model.module.modality_penalty}")
+
+# ========================================
+# 4. Parameter Counts
+# ========================================
+print("\n4️⃣ PARAMETER COUNTS:")
+total_params = sum(p.numel() for p in model.module.parameters())
+trainable_params = sum(p.numel() for p in model.module.parameters() if p.requires_grad)
+
+print(f"Total parameters: {total_params:,}")
+print(f"Trainable parameters: {trainable_params:,}")
+
+# Per-component parameter counts
+component_params = {}
+for name, module in model.module.named_children():
+    params = sum(p.numel() for p in module.parameters())
+    component_params[name] = params
+    print(f"  {name}: {params:,} parameters")
+
+# ========================================
+# 5. Detailed Module Architecture
+# ========================================
+print("\n5️⃣ DETAILED MODULE STRUCTURE:")
+print(model.module)
+
+# ========================================
+# 6. Encoder/Decoder Details
+# ========================================
+print("\n6️⃣ ENCODER/DECODER DETAILS:")
+
+# Expression branch
+print("\n📊 EXPRESSION BRANCH:")
+print(f"  Encoder: {type(model.module.z_encoder_expression).__name__}")
+print(f"  Decoder: {type(model.module.z_decoder_expression).__name__}")
+print(f"  Library encoder: {type(model.module.l_encoder_expression).__name__}")
+
+# Splicing branch  
+print("\n🧬 SPLICING BRANCH:")
+print(f"  Encoder: {type(model.module.z_encoder_splicing).__name__}")
+print(f"  Decoder: {type(model.module.z_decoder_splicing).__name__}")
+
+# If using PartialEncoder, show more details
+if hasattr(model.module.z_encoder_splicing, 'feature_embedding'):
+    emb_shape = model.module.z_encoder_splicing.feature_embedding.shape
+    print(f"  Feature embedding shape: {emb_shape}")
+    print(f"  Code dim: {model.module.code_dim}")
+    print(f"  H hidden dim: {model.module.h_hidden_dim}")
+
+# ========================================
+# 7. Concentration Parameters
+# ========================================
+print("\n7️⃣ CONCENTRATION PARAMETERS:")
+if hasattr(model.module, 'log_phi_j'):
+    phi_j = model.module.log_phi_j
+    print(f"  Junction φ (log_phi_j) shape: {phi_j.shape}")
+    print(f"  Junction φ init values: min={torch.exp(phi_j).min().item():.2f}, max={torch.exp(phi_j).max().item():.2f}, median={torch.exp(phi_j).median().item():.2f}")
+
+if hasattr(model.module, 'px_r'):
+    px_r = model.module.px_r
+    print(f"  Gene dispersion (px_r) shape: {px_r.shape}")
+    print(f"  Gene dispersion init values: min={torch.exp(px_r).min().item():.2f}, max={torch.exp(px_r).max().item():.2f}, median={torch.exp(px_r).median().item():.2f}")
+
+# ========================================
+# 8. Data Flow Summary  
+# ========================================
+print("\n8️⃣ DATA FLOW SUMMARY:")
+print("""
+🔄 FORWARD PASS FLOW:
+   Input: [genes + junctions] → [batch_size, n_genes + n_junctions]
+   ↓
+   Split: genes [batch_size, n_genes] | junctions [batch_size, n_junctions]  
+   ↓
+   Encode: 
+     - Expression encoder → z_expr [batch_size, n_latent]
+     - Splicing encoder → z_spl [batch_size, n_latent]  
+   ↓
+   Mix: z_joint [batch_size, n_latent] (weighted combination)
+   ↓
+   Decode:
+     - Expression decoder → gene_params [batch_size, n_genes]
+     - Splicing decoder → junction_probs [batch_size, n_junctions]
+   ↓
+   Loss: reconstruction + KL + modality_penalty + phi_prior
+""")
+
 # ------------------------------
 # 7. Train
 # ------------------------------

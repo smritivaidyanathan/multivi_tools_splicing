@@ -1,0 +1,33 @@
+→ Latent Space Evaluation Run
+→ Output directory: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250526_162938
+True
+Will be saving outputs to /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250526_162938
+Reading in MuData from /gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu
+MuData object with n_obs × n_vars = 83321 × 39845
+  obs:	'cell_id', 'age', 'cell_ontology_class', 'mouse.id', 'sex', 'tissue', 'dataset', 'broad_cell_type', 'cell_id_index', 'cell_name', 'modality'
+  var:	'ID', 'modality'
+  obsm:	'X_library_size'
+  2 modalities
+    rna:	83321 x 5000
+      obs:	'cell_id_index', 'age', 'cell_ontology_class', 'mouse.id', 'sex', 'subtissue', 'tissue', 'dataset', 'cell_name', 'cell_id', 'cell_clean', 'broad_cell_type', 'seqtech', 'modality'
+      var:	'ID', 'modality'
+      uns:	'hvg', 'log1p'
+      obsm:	'X_library_size'
+      layers:	'length_norm', 'log_norm', 'predicted_log_norm_tms', 'raw_counts', 'working_norm'
+    splicing:	83321 x 34845
+      obs:	'cell_id_index', 'age', 'cell_ontology_class', 'mouse.id', 'sex', 'subtissue', 'tissue', 'dataset', 'cell_name', 'cell_id', 'cell_clean', 'broad_cell_type', 'seqtech', 'modality'
+      var:	'ID', 'modality'
+      layers:	'cell_by_cluster_matrix', 'cell_by_junction_matrix', 'junc_ratio', 'psi_mask'
+Loading model from /gpfs/commons/home/kisaev/multi_vi_splice_runs/MultiVISpliceTraining_20250526_134546_job4883488/models
+[34mINFO    [0m File                                                                   
+         [35m/gpfs/commons/home/kisaev/multi_vi_splice_runs/MultiVISpliceTraining_20[0m
+         [35m250526_134546_job4883488/models/[0m[95mmodel.pt[0m already downloaded            
+Model loaded successfully
+Extracting latent representations...
+Plotting UMAPs and silhouette scores...
+Plotting UMAP for joint
+Plotting UMAP for expression
+Plotting UMAP for splicing
+Evaluating subcluster reproducibility for broad_cell_type...
+  wrote /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250526_162938/subcluster_eval/figures/line_plots/subcluster_MultiVISpliceTraining_20250526_134546_job4883488.png
+  wrote /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250526_162938/subcluster_eval/figures/line_plots/subcluster_MultiVISpliceTraining_20250526_134546_job4883488.pdf

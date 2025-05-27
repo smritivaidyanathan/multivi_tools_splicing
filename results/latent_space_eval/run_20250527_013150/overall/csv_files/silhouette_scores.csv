@@ -1,0 +1,4 @@
+model,rep,silhouette_score
+MultiVISpliceTraining_20250526_180124_job4883640,joint,-0.062131144
+MultiVISpliceTraining_20250526_180124_job4883640,expression,-0.07912977
+MultiVISpliceTraining_20250526_180124_job4883640,splicing,-0.124935135

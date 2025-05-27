@@ -1,0 +1,6 @@
+→ Latent Space Evaluation Run
+→ Output directory: /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_021046
+[34mINFO    [0m File                                                                   
+         [35m/gpfs/commons/home/kisaev/multi_vi_splice_runs/MultiVISpliceTraining_20[0m
+         [35m250526_195717_job4883643/models/[0m[95mmodel.pt[0m already downloaded            
+  wrote /gpfs/commons/home/kisaev/multivi_tools_splicing/results/latent_space_eval/run_20250527_021046/subcluster_eval/figures/line_plots/subcluster_MultiVISpliceTraining_20250526_195717_job4883643.png

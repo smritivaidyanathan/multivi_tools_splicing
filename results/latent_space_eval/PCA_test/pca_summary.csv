@@ -1,0 +1,4 @@
+Latent Space,Percentage Explained,Number of Components,Components for Target Variance,Total Variance Explained
+joint,0.9,20,1,0.9487932
+expression,0.9,20,2,0.95196015
+splicing,0.9,20,1,0.9732443

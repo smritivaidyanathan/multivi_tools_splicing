@@ -1,0 +1,20 @@
+Reading in MuData from /gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/aligned__ge_splice_combined_20250513_035938.h5mu
+MuData object with n_obs × n_vars = 157418 × 39845
+  obs:	'cell_id', 'age', 'cell_ontology_class', 'mouse.id', 'sex', 'tissue', 'dataset', 'broad_cell_type', 'cell_id_index', 'cell_name', 'modality'
+  var:	'ID', 'modality'
+  obsm:	'X_library_size'
+  2 modalities
+    rna:	157418 x 5000
+      obs:	'cell_id_index', 'age', 'cell_ontology_class', 'mouse.id', 'sex', 'subtissue', 'tissue', 'dataset', 'cell_name', 'cell_id', 'cell_clean', 'broad_cell_type', 'seqtech', 'modality'
+      var:	'ID', 'modality'
+      uns:	'hvg', 'log1p'
+      obsm:	'X_library_size'
+      layers:	'length_norm', 'log_norm', 'predicted_log_norm_tms', 'raw_counts', 'working_norm'
+    splicing:	157418 x 34845
+      obs:	'cell_id_index', 'age', 'cell_ontology_class', 'mouse.id', 'sex', 'subtissue', 'tissue', 'dataset', 'cell_name', 'cell_id', 'cell_clean', 'broad_cell_type', 'seqtech', 'modality'
+      var:	'ID', 'modality'
+      layers:	'cell_by_cluster_matrix', 'cell_by_junction_matrix', 'junc_ratio', 'psi_mask'
+Loading model from /gpfs/commons/home/kisaev/multi_vi_splice_runs/MultiVISpliceTraining_20250526_180124_job4883640/models
+[34mINFO    [0m File                                                                   
+         [35m/gpfs/commons/home/kisaev/multi_vi_splice_runs/MultiVISpliceTraining_20[0m
+         [35m250526_180124_job4883640/models/[0m[95mmodel.pt[0m already downloaded            
