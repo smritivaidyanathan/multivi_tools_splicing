@@ -91,6 +91,12 @@ def plot_imputation_dropoff(csv_path, models_to_plot, outdir):
                 ax.set_ylabel(metric_name)
             if row == 2:  # Bottom row gets x-axis labels
                 ax.set_xlabel("Percent missing")
+                
+    # Set x-axis ticks to the actual percentages tested
+    x_ticks = sorted(df["pct_missing"].unique() * 100)
+    for row_axes in axes:
+        for ax in row_axes:
+            ax.set_xticks(x_ticks)
 
     # Make legend handles with larger markers and lines
     z_handles = [
@@ -133,8 +139,8 @@ def plot_imputation_dropoff(csv_path, models_to_plot, outdir):
 
 if __name__ == "__main__":
     # Update these paths to match your file locations
-    CSV  = "/gpfs/commons/home/kisaev/multivi_tools_splicing/results/imputation/batch_20250526_043722/consolidated_imputation_results.csv"
-    OUTD = "/gpfs/commons/home/kisaev/multivi_tools_splicing/results/imputation/batch_20250526_043722/figures"  # Output directory for plots
+    CSV  = "/gpfs/commons/home/svaidyanathan/imputation_eval_runs/parallel_runs/batch_20250528_082052/consolidated_imputation_results.csv"
+    OUTD = "/gpfs/commons/home/svaidyanathan/imputation_eval_runs/parallel_runs/batch_20250528_082052/figures"  # Output directory for plots
     
     # Create output directory if it doesn't exist
     os.makedirs(OUTD, exist_ok=True)

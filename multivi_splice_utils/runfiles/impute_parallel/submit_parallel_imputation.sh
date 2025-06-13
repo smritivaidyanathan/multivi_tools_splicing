@@ -2,8 +2,9 @@
 # submit_parallel_imputation.sh
 # Script to submit multiple parallel imputation jobs
 
-BASE_RUN_DIR="/gpfs/commons/home/kisaev/multivi_tools_splicing/results/imputation"
-SCRIPT_PATH="/gpfs/commons/home/kisaev/multivi_tools_splicing/multivi_splice_utils/runfiles/imputation_eval_single.py"
+BASE_RUN_DIR="/gpfs/commons/home/svaidyanathan/imputation_eval_runs/parallel_runs"
+SCRIPT_PATH="/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/multivi_splice_utils/runfiles/imputation_eval_single.py"
+
 
 # Timestamped batch run
 TS=$(date +"%Y%m%d_%H%M%S")
@@ -20,9 +21,10 @@ echo "→ Imputation Evaluation: RNA=${PCT_RNA}%, Splice=${PCT_SPLICE}%"
 echo "→ Output directory: ${IMPUTATION_EVAL_OUTDIR}"
 
 # Conda Environment Setup
-CONDA_BASE="/gpfs/commons/home/kisaev/miniconda3"
+CONDA_BASE="/gpfs/commons/home/svaidyanathan/miniconda3"
 source "${CONDA_BASE}/etc/profile.d/conda.sh"
 conda activate scvi-env
+
 
 # Run Python script for this specific condition
 python ${SCRIPT_PATH}
@@ -32,14 +34,18 @@ chmod +x "${BATCH_RUN_DIR}/job_template.sh"
 
 # Define the missing percentage pairs
 MISSING_PAIRS=(
+    "0.1,0.1"   # Both low
+    "0.3,0.3"   # Both medium
     "0.5,0.5"   # Both high
-    "0.15,0.15"   # Both medium
-    "0.0,0.15"     # Splice medium
-    "0.15,0.0"   # RNA medium
-    "0.0,0.5"   # Splice high
-    "0.5,0.0"   # RNA high
-)
 
+    "0.0,0.1"   # Splice low only
+    "0.0,0.3"   # Splice medium only
+    "0.0,0.5"   # Splice high only
+
+    "0.1,0.0"   # RNA low only
+    "0.3,0.0"   # RNA medium only
+    "0.5,0.0"   # RNA high only
+)
 # Submit one job per missing condition
 for pair in "${MISSING_PAIRS[@]}"; do
     pct_rna=$(echo $pair | cut -d',' -f1)
