@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=Splice_VI_PartialVAE_Training
-#SBATCH --mem=100G
+#SBATCH --mem=64G
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 
@@ -25,7 +25,7 @@ ADATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/TMS_MODELING/DATA_FILES/SIMUL
 #LATENT_DIM=10                # --latent_dim (default: 10)
 DROPOUT_RATE=0.01           # --dropout_rate (default: 0.0)
 #LEARN_CONCENTRATION=false   # --learn_concentration (default: true)
-SPLICE_LIKELIHOOD="binomial" # --splice_likelihood (default: "beta_binomial")
+SPLICE_LIKELIHOOD="dirichlet_multinomial" # --splice_likelihood (default: "beta_binomial")
 
 # Optional hyperparams for TRAINING (uncomment to override; defaults in parentheses):
 MAX_EPOCHS=100         # --max_epochs (default: 500)

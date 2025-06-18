@@ -183,19 +183,19 @@ model = scvi.model.SPLICEVI(ad, **model_kwargs)
 
 model.view_anndata_setup()
 
-# Add PCA embedding for initialization
-# Get feature embedding before PCA init
-pca_tensor = torch.tensor(pca_components, dtype=model.module.encoder.feature_embedding.dtype)
-embedding_tensor = model.module.encoder.feature_embedding.detach()
+# # Add PCA embedding for initialization
+# # Get feature embedding before PCA init
+# pca_tensor = torch.tensor(pca_components, dtype=model.module.encoder.feature_embedding.dtype)
+# embedding_tensor = model.module.encoder.feature_embedding.detach()
 
-diff = torch.norm(embedding_tensor - pca_tensor).item()
-print(f"L2 norm between PCA loadings and random model embedding: {diff:.6f}")
+# diff = torch.norm(embedding_tensor - pca_tensor).item()
+# print(f"L2 norm between PCA loadings and random model embedding: {diff:.6f}")
 
-model.module.initialize_feature_embedding_from_pca(pca_components)
-pca_tensor = torch.tensor(pca_components, dtype=model.module.encoder.feature_embedding.dtype)
-embedding_tensor = model.module.encoder.feature_embedding.detach()
-diff = torch.norm(embedding_tensor - pca_tensor).item()
-print(f"L2 norm between initialized PCA and model embedding: {diff:.6f}")
+# model.module.initialize_feature_embedding_from_pca(pca_components)
+# pca_tensor = torch.tensor(pca_components, dtype=model.module.encoder.feature_embedding.dtype)
+# embedding_tensor = model.module.encoder.feature_embedding.detach()
+# diff = torch.norm(embedding_tensor - pca_tensor).item()
+# print(f"L2 norm between initialized PCA and model embedding: {diff:.6f}")
 
 
 # ------------------------------
@@ -223,7 +223,7 @@ wandb.log({"model_saved_to": args.model_dir})
 import scanpy as sc
 print("Computing latent representation and UMAP…")
 ad.obsm['X_splicevi'] = model.get_latent_representation()
-sc.pp.neighbors(ad, use_rep='X_splicevi')
+sc.pp.neighbors(ad, use_rep='X_splicevi', n_neighbors = 5)
 sc.tl.umap(ad, min_dist=0.1)
 print("UMAP embedding done.")
 

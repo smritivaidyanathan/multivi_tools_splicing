@@ -453,6 +453,46 @@ for space_name, Z in latent_spaces.items():
         print(f"Saved UMAP for '{label}' in space '{space_name}' → {out_path}")
 
 
+
+# ──  Extra: modality‐weight boxplots by obs‐label ──────────────────────
+
+if train_kwargs.get("modality_weights") == "cell":
+    import pandas as pd
+    import seaborn as sns
+    print("Making splicing‐weight box plots...")
+
+    # extract per‐cell splicing weight
+    w_splice = model.module.mod_weights.detach().cpu().numpy()[:, 1]
+
+    # assemble DataFrame
+    df = mdata["rna"].obs[umap_labels].copy()
+    df["w_splicing"] = w_splice
+
+    for label in umap_labels:
+        fig, ax = plt.subplots(figsize=(4, 4))
+        sns.boxplot(
+            x=label,
+            y="w_splicing",
+            data=df,
+            ax=ax,
+            showfliers=False,
+        )
+        ax.set_title(f"Splicing weight by {label}")
+        ax.set_ylabel("splicing weight")
+        plt.xticks(rotation=45, ha="right")
+        plt.tight_layout()
+
+        # save + log
+        filename = f"w_splicing_by_{label}_latent{model_kwargs.get('n_latent', init_defaults.get('n_latent'))}.png"
+        out_path = os.path.join(FIGURE_OUTPUT_DIR, filename)
+        fig.savefig(out_path, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+
+        print(f"Saved splicing‐weight boxplot for '{label}' → {out_path}")
+        wandb.log({f"w_splicing_by_{label}": wandb.Image(out_path)})
+
+
+
 # ------------------------------
 # 10. Finish
 # ------------------------------

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=MultiVI-Splice-Training
-#SBATCH --mem=300G
+#SBATCH --mem=200G
 #SBATCH --partition=gpu
-#SBATCH --time=48:00:00
+#SBATCH --time=4:00:00
 #SBATCH --gres=gpu:1
 
 ### ─── USER EDITABLE CONFIG ────────────────────────────────────────────── ###
@@ -21,7 +21,7 @@
 #MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/aligned__ge_splice_combined_20250513_035938.h5mu"
 # Test on subset of data
 # MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu"
-MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938_full_genes.h5mu"
+MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu"
 # Optional hyperparams for MODEL INIT (uncomment to override; defaults in parentheses):
 # N_GENES="None"                 # --n_genes (default: None, inferred from data)
 # N_JUNCTIONS="None"             # --n_junctions (default: None, inferred from data)
@@ -33,7 +33,7 @@ LATENT_DIM=20                     # --n_latent (default: None = √n_hidden)
 # N_LAYERS_DECODER=2               # --n_layers_decoder (default: 2)
 # DROPOUT_RATE=0.1                 # --dropout_rate (default: 0.1)
 # GENE_LIKELIHOOD="zinb"         # --gene_likelihood (default: "zinb") 
-#SPLICING_LOSS_TYPE="binomial" # --splicing_loss_type (default: "beta_binomial")
+SPLICING_LOSS_TYPE="dirichlet_multinomial" # --splicing_loss_type (default: "beta_binomial")
 # SPLICING_CONCENTRATION="None"   # --splicing_concentration (default: None)
 SPLICING_ARCHITECTURE="partial"   # --splicing_architecture (default: "vanilla")
 EXPRESSION_ARCHITECTURE="linear"   # --expression_architecture (default: "vanilla")
@@ -81,7 +81,7 @@ UMAP_CELL_LABELS="broad_cell_type dataset"
 
 # Build unique run folder
 BASE_NAME="MultiVISpliceTraining"
-RUN_ROOT="/gpfs/commons/home/kisaev/multi_vi_splice_runs"
+RUN_ROOT="/gpfs/commons/home/svaidyanathan/multi_vi_splice_runs"
 TS=$(date +"%Y%m%d_%H%M%S")
 RUN_ID="${TS}_job${SLURM_JOB_ID:-manual}"
 RUN_DIR="${RUN_ROOT}/${BASE_NAME}_${RUN_ID}"
@@ -99,7 +99,7 @@ echo "   models  → ${RUN_DIR}/models"
 echo "   figures → ${RUN_DIR}/figures"
 
 # Initialize Conda
-CONDA_BASE="/gpfs/commons/home/kisaev/miniconda3"
+CONDA_BASE="/gpfs/commons/home/svaidyanathan/miniconda3"
 source "${CONDA_BASE}/etc/profile.d/conda.sh"
 conda activate scvi-env
 
@@ -171,4 +171,4 @@ if [ -n "$UMAP_CELL_LABELS" ]; then
 fi
 
 # Launch the pipeline
-python /gpfs/commons/home/kisaev/multivi_tools_splicing/multivi_splice_utils/runfiles/multivirun.py "${args[@]}"
+python /gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/multivi_splice_utils/runfiles/multivirun.py "${args[@]}"
