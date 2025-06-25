@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=MultiVI-Splice-Training
-#SBATCH --mem=200G
+#SBATCH --mem=150G
 #SBATCH --partition=gpu
-#SBATCH --time=4:00:00
+#SBATCH --time=20:00:00
 #SBATCH --gres=gpu:1
 
 ### ─── USER EDITABLE CONFIG ────────────────────────────────────────────── ###
@@ -25,7 +25,7 @@ MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SP
 # Optional hyperparams for MODEL INIT (uncomment to override; defaults in parentheses):
 # N_GENES="None"                 # --n_genes (default: None, inferred from data)
 # N_JUNCTIONS="None"             # --n_junctions (default: None, inferred from data)
-MODALITY_WEIGHTS="equal"       # --modality_weights (default: "equal")
+MODALITY_WEIGHTS="concatenate"       # --modality_weights (default: "equal")
 # MODALITY_PENALTY="Jeffreys"    # --modality_penalty (default: "Jeffreys")
 # N_HIDDEN="None"                # --n_hidden (default: None = √n_junctions)
 LATENT_DIM=20                     # --n_latent (default: None = √n_hidden)
@@ -46,8 +46,8 @@ EXPRESSION_ARCHITECTURE="linear"   # --expression_architecture (default: "vanill
 # FULLY_PAIRED="false"           # --fully_paired (default: false)
 
 # Optional hyperparams for TRAINING (uncomment to override; defaults in parentheses):
-MAX_EPOCHS=75                   # --max_epochs (default: 500)
-LR=0.00001                        # --lr (default: 1e-4)
+MAX_EPOCHS=500                   # --max_epochs (default: 500)
+LR=0.000001                        # --lr (default: 1e-4)
 # ACCELERATOR="auto"             # --accelerator (default: "auto")
 # DEVICES="auto"                 # --devices (default: "auto")
 # TRAIN_SIZE="None"              # --train_size (default: None)

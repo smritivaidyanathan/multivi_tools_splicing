@@ -223,7 +223,7 @@ wandb.log({"model_saved_to": args.model_dir})
 import scanpy as sc
 print("Computing latent representation and UMAP…")
 ad.obsm['X_splicevi'] = model.get_latent_representation()
-sc.pp.neighbors(ad, use_rep='X_splicevi', n_neighbors = 5)
+sc.pp.neighbors(ad, use_rep='X_splicevi')
 sc.tl.umap(ad, min_dist=0.1)
 print("UMAP embedding done.")
 

@@ -377,40 +377,40 @@ except Exception as e:
 
 print(f"model.save tried to write files to: {MODEL_SAVE_DIR}")
 
-# ------------------------------
-# 8. Compute UMAP
-# ------------------------------
-print("Computing latent representation and UMAP…")
-latent_key = "X_multivi"
-mdata["rna"].obsm[latent_key] = model.get_latent_representation()
-sc.pp.neighbors(mdata["rna"], use_rep=latent_key)
-sc.tl.umap(mdata["rna"], min_dist=0.2)
-print("UMAP embedding done.")
+# # ------------------------------
+# # 8. Compute UMAP
+# # ------------------------------
+# print("Computing latent representation and UMAP…")
+# latent_key = "X_multivi"
+# mdata["rna"].obsm[latent_key] = model.get_latent_representation()
+# sc.pp.neighbors(mdata["rna"], use_rep=latent_key)
+# sc.tl.umap(mdata["rna"], min_dist=0.2)
+# print("UMAP embedding done.")
 
-# ------------------------------
-# 9. Plot & save one UMAP per label
-# ------------------------------
-for label in umap_labels:
-    if label not in mdata["rna"].obs:
-        print(f"Warning: '{label}' not in mdata.obs—skipping.")
-        continue
-    mdata["rna"].obs[label] = mdata["rna"].obs[label].astype("category")
-    palette = sns.color_palette("hsv", len(mdata["rna"].obs[label].cat.categories))
-    fig = sc.pl.umap(
-        mdata["rna"],
-        color=label,
-        palette=palette,
-        legend_loc="right margin",
-        show=False,
-        return_fig=True,
-    )
-    out_path = os.path.join(
-        FIGURE_OUTPUT_DIR, f"umap_{label}_latent{model_kwargs.get('n_latent', init_defaults.get('n_latent'))}.png"
-    )
-    fig.savefig(out_path, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    wandb.log({f"umap_{label}": wandb.Image(fig)})
-    print(f"Saved UMAP for '{label}' → {out_path}")
+# # ------------------------------
+# # 9. Plot & save one UMAP per label
+# # ------------------------------
+# for label in umap_labels:
+#     if label not in mdata["rna"].obs:
+#         print(f"Warning: '{label}' not in mdata.obs—skipping.")
+#         continue
+#     mdata["rna"].obs[label] = mdata["rna"].obs[label].astype("category")
+#     palette = sns.color_palette("hsv", len(mdata["rna"].obs[label].cat.categories))
+#     fig = sc.pl.umap(
+#         mdata["rna"],
+#         color=label,
+#         palette=palette,
+#         legend_loc="right margin",
+#         show=False,
+#         return_fig=True,
+#     )
+#     out_path = os.path.join(
+#         FIGURE_OUTPUT_DIR, f"umap_{label}_latent{model_kwargs.get('n_latent', init_defaults.get('n_latent'))}.png"
+#     )
+#     fig.savefig(out_path, dpi=300, bbox_inches="tight")
+#     plt.close(fig)
+#     wandb.log({f"umap_{label}": wandb.Image(fig)})
+#     print(f"Saved UMAP for '{label}' → {out_path}")
 
 # ------------------------------
 # 8. Compute UMAPs for multiple latent spaces
@@ -452,22 +452,28 @@ for space_name, Z in latent_spaces.items():
         wandb.log({f"{space_name}_umap_{label}": wandb.Image(out_path)})
         print(f"Saved UMAP for '{label}' in space '{space_name}' → {out_path}")
 
-
-
-# ──  Extra: modality‐weight boxplots by obs‐label ──────────────────────
-
-if train_kwargs.get("modality_weights") == "cell":
+# ── Extra: modality‐weight boxplots by obs‐label ──────────────────────
+if model_kwargs.get("modality_weights") == "cell":
     import pandas as pd
     import seaborn as sns
+    import torch.nn.functional as F
+
     print("Making splicing‐weight box plots...")
 
-    # extract per‐cell splicing weight
-    w_splice = model.module.mod_weights.detach().cpu().numpy()[:, 1]
+    # 1) grab raw per‐cell weights (n_cells × 2)
+    raw = model.module.mod_weights.detach()  # Tensor
 
-    # assemble DataFrame
+    # 2) normalize to [0,1] via softmax so expr+spl = 1
+    mix = F.softmax(raw, dim=1).cpu().numpy()
+
+    # 3) extract the splicing weight (column 1)
+    w_splice = mix[:, 1]
+
+    # 4) assemble DataFrame with your obs labels + splicing weight
     df = mdata["rna"].obs[umap_labels].copy()
     df["w_splicing"] = w_splice
 
+    # 5) plot and save
     for label in umap_labels:
         fig, ax = plt.subplots(figsize=(4, 4))
         sns.boxplot(
@@ -478,7 +484,7 @@ if train_kwargs.get("modality_weights") == "cell":
             showfliers=False,
         )
         ax.set_title(f"Splicing weight by {label}")
-        ax.set_ylabel("splicing weight")
+        ax.set_ylabel("splicing weight (softmaxed)")
         plt.xticks(rotation=45, ha="right")
         plt.tight_layout()
 
@@ -492,6 +498,58 @@ if train_kwargs.get("modality_weights") == "cell":
         wandb.log({f"w_splicing_by_{label}": wandb.Image(out_path)})
 
 
+# ── If using concatenation, export one heatmap per decoder ──
+if model.module.modality_weights == "concatenate":
+    import os
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    out_dir = os.path.join(MODEL_SAVE_DIR, "decoder_heatmaps")
+    os.makedirs(out_dir, exist_ok=True)
+
+    # 1) Expression Decoder: grab the first Linear in factor_regressor's fc_layers
+    expr_dec = model.module.z_decoder_expression
+    # fc_layers is a Sequential of OrderedDict[ "Layer 0" → Sequential(Linear, BatchNorm, ...) , … ]
+    lin_expr = expr_dec.factor_regressor.fc_layers[0][0]
+    W_expr = lin_expr.weight.detach().cpu().numpy()  # shape: (n_genes, latent_dim)
+
+    # 2) Splicing Decoder: its single Linear layer
+    spl_dec = model.module.z_decoder_splicing
+    lin_spl = spl_dec.linear
+    W_spl = lin_spl.weight.detach().cpu().numpy()    # shape: (n_junctions, latent_dim+cov)
+
+    # Helper to plot, save, and log one heatmap
+    def _plot_heatmap(W, xlabel, ylabel, title, fname):
+        fig, ax = plt.subplots(figsize=(12, 6))
+        im = ax.imshow(np.abs(W).T, aspect="auto")
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_title(title)
+        fig.colorbar(im, ax=ax, label="|weight|")
+
+        path = os.path.join(out_dir, fname)
+        fig.savefig(path, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        print(f"[concatenate] saved {title} → {path}")
+
+        # Log to W&B
+        wandb.log({title: wandb.Image(path)})
+
+
+    _plot_heatmap(
+        W_expr,
+        "Gene index",
+        "Latent dimension",
+        "Expression Decoder |weights|",
+        "expression_decoder_heatmap.png",
+    )
+    _plot_heatmap(
+        W_spl,
+        "Junction index",
+        "Latent dimension + covariates",
+        "Splicing Decoder |weights|",
+        "splicing_decoder_heatmap.png",
+    )
 
 # ------------------------------
 # 10. Finish

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=Splice_VI_PartialVAE_Training
-#SBATCH --mem=64G
+#SBATCH --mem=300G
 #SBATCH --partition=gpu
+#SBATCH --time=5:00:00
 #SBATCH --gres=gpu:1
 
 ### ─── USER EDITABLE CONFIG ────────────────────────────────────────────── ###
@@ -26,16 +27,18 @@ ADATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/TMS_MODELING/DATA_FILES/SIMUL
 DROPOUT_RATE=0.01           # --dropout_rate (default: 0.0)
 #LEARN_CONCENTRATION=false   # --learn_concentration (default: true)
 SPLICE_LIKELIHOOD="dirichlet_multinomial" # --splice_likelihood (default: "beta_binomial")
+USE_TRANSFORMER="true"
+LINFORMER_K=64
 
 # Optional hyperparams for TRAINING (uncomment to override; defaults in parentheses):
-MAX_EPOCHS=100         # --max_epochs (default: 500)
-LR=1e-2                  # --lr (default: 1e-4)
+MAX_EPOCHS=200         # --max_epochs (default: 500)
+LR=1e-4                  # --lr (default: 1e-4)
 # ACCELERATOR="auto"       # --accelerator (default: "auto")
 # DEVICES="auto"           # --devices (default: "auto")
 # TRAIN_SIZE="None"        # --train_size (default: None)
 # VALIDATION_SIZE="None"   # --validation_size (default: None)
 # SHUFFLE_SET_SPLIT="true" # --shuffle_set_split (default: true)
-#BATCH_SIZE=512               # --batch_size (default: 128)
+BATCH_SIZE=512               # --batch_size (default: 128)
 #WEIGHT_DECAY=0.0         # --weight_decay (default: 1e-3)
 # EPS=1e-08                  # --eps (default: 1e-8)
 #EARLY_STOPPING="true"    # --earlbut ty_stopping (default: true)
@@ -52,7 +55,7 @@ LR=1e-2                  # --lr (default: 1e-4)
 # PLAN_KWARGS="None"       # --plan_kwargs (default: None)
 
 # UMAP colors (uncomment to override; default: cell_type_grouped)
-# UMAP_COLORS="cell_type_grouped sex mouse.id"
+#UMAP_COLORS="cell_type_grouped sex mouse.id"
 ### ────────────────────────────────────────────────────────────────────── ###
 
 # Build unique run folder
@@ -94,6 +97,8 @@ args=(
 [ -n "$DROPOUT_RATE" ]        && args+=( --dropout_rate "$DROPOUT_RATE" )
 [ -n "$LEARN_CONCENTRATION" ] && args+=( --learn_concentration "$LEARN_CONCENTRATION" )
 [ -n "$SPLICE_LIKELIHOOD" ]    && args+=( --splice_likelihood "$SPLICE_LIKELIHOOD" )
+[ -n "$USE_TRANSFORMER" ]    && args+=( --use_transformer "$USE_TRANSFORMER" )
+[ -n "$LINFORMER_K" ]    && args+=( --linformer_k "$LINFORMER_K" )
 
 # TRAINING flags
 [ -n "$MAX_EPOCHS" ]          && args+=( --max_epochs "$MAX_EPOCHS" )
