@@ -59,6 +59,23 @@ parser.add_argument(
     "--fig_dir", type=str, default=DEFAULT_FIG_DIR,
     help=f"Directory to save UMAP figures (default: {DEFAULT_FIG_DIR})"
 )
+
+# ------------------------------
+# 3b. Add flags for post‐hoc tests
+# ------------------------------
+parser.add_argument(
+    "--simulated",
+    action="store_true",
+    help="If set, train a logistic regression on the learned latent space and log metrics to W&B."
+)
+parser.add_argument(
+    "--imputedencoder",
+    action="store_true",
+    help="If set, compute correlation between model.module.impute_net output and original junc_ratio."
+)
+
+
+
 # model init params
 for name, default in init_defaults.items():
     arg_type = type(default) if default is not None else float
@@ -107,47 +124,63 @@ wandb_logger = WandbLogger(project="splicevi-partialvae", config=full_config)
 # 6. Load AnnData & Preprocess
 # ------------------------------
 print(f"Loading AnnData from {args.adata_path}…")
-ad = sc.read_h5ad(args.adata_path)
+if args.simulated:
+    print("Is Simulated Data!")
+    ad = sc.read_h5ad(args.adata_path)
+else:
+    import mudata as mu
+    print("Is Not Simulated Data!")
+    mdata = mu.read_h5mu(args.adata_path)
+    # grab the splicing modality
+    ad = mdata["splicing"]
 
-# Check if any NaNs in junc_ratio 
-X = ad.layers["junc_ratio"] 
+if args.imputedencoder:
+    print("Is Using Impected Decoder!")
+else:
+    print("Is Not Using Imputed Decoder!")
 
-# Step 1: Compute mean of non-NaN values per column (axis=0)
-col_means = np.nanmean(X, axis=0)
+# # Check if any NaNs in junc_ratio 
+# X = ad.layers["junc_ratio"] 
 
-# Step 2: Subtract column means from non-NaN entries
-X_centered = X - col_means[np.newaxis, :]  # broadcast subtraction
+# # Step 1: Compute mean of non-NaN values per column (axis=0)
+# col_means = np.nanmean(X, axis=0)
 
-# Step 3: Replace NaNs (which are now just untouched entries) with 0
-X_centered[np.isnan(X_centered)] = 0.0
+# # Step 2: Subtract column means from non-NaN entries
+# X_centered = X - col_means[np.newaxis, :]  # broadcast subtraction
 
-# X should be of shape (num_samples, input_dim)
-CODE_DIM = args.code_dim or init_defaults.get("code_dim", 16)  # fallback if None
-print(f"↪ Using CODE_DIM = {CODE_DIM} for PCA")
-pca = PCA(n_components=CODE_DIM)
-X_pca = pca.fit_transform(X_centered)  # shape: (n_cells, CODE_DIM)
-pca_components = pca.components_.T  # shape: (input_dim, code_dim)
+# # Step 3: Replace NaNs (which are now just untouched entries) with 0
+# X_centered[np.isnan(X_centered)] = 0.0
+
+# # X should be of shape (num_samples, input_dim)
+# CODE_DIM = args.code_dim or init_defaults.get("code_dim", 16)  # fallback if None
+# print(f"↪ Using CODE_DIM = {CODE_DIM} for PCA")
+# pca = PCA(n_components=CODE_DIM)
+# X_pca = pca.fit_transform(X_centered)  # shape: (n_cells, CODE_DIM)
+# pca_components = pca.components_.T  # shape: (input_dim, code_dim)
 
 # Layer names
 x_layer = "junc_ratio"
 junction_counts_layer = "cell_by_junction_matrix"
 cluster_counts_layer = "cell_by_cluster_matrix"
-mask_layer = "mask"
+mask_layer = "psi_mask"
 
+if args.simulated:
 # --- Construct mask from cluster counts ---
-if cluster_counts_layer in ad.layers:
-    cc = ad.layers[cluster_counts_layer]
-    cc_array = cc.toarray() if sparse.issparse(cc) else np.asarray(cc)
-    mask = (cc_array > 0).astype(np.uint8)
-    ad.layers[mask_layer] = sparse.csr_matrix(mask)
-    print(f"Mask layer `{mask_layer}` created from `{cluster_counts_layer}`.")
+    if cluster_counts_layer in ad.layers:
+        cc = ad.layers[cluster_counts_layer]
+        cc_array = cc.toarray() if sparse.issparse(cc) else np.asarray(cc)
+        mask = (cc_array > 0).astype(np.uint8)
+        ad.layers[mask_layer] = sparse.csr_matrix(mask)
+        print(f"Mask layer `{mask_layer}` created from `{cluster_counts_layer}`.")
 
-# --- Preprocess junction ratio layer ---
-if x_layer in ad.layers:
-    jr = ad.layers[x_layer]
-    jr_array = jr.toarray() if sparse.issparse(jr) else np.asarray(jr)
-    ad.layers[x_layer] = sparse.csr_matrix(np.nan_to_num(jr_array, nan=0.0))
-    print(f"Cleaned NaNs in `{x_layer}` and converted to CSR.")
+    # --- Preprocess junction ratio layer ---
+    if x_layer in ad.layers:
+        jr = ad.layers[x_layer]
+        jr_array = jr.toarray() if sparse.issparse(jr) else np.asarray(jr)
+        ad.layers[x_layer] = sparse.csr_matrix(np.nan_to_num(jr_array, nan=0.0))
+        print(f"Cleaned NaNs in `{x_layer}` and converted to CSR.")
+
+print(f"Found Layers: {ad.layers}")
 
 
 print("Setting up SpliceVI PartialVAE…")
@@ -180,6 +213,19 @@ model = scvi.model.SPLICEVI(ad, **model_kwargs)
 #     learn_concentration=False,
 #     splice_likelihood="binomial"
 # )
+
+# ── count & log total parameters ─────────────────────────────────────────────
+total_params = sum(p.numel() for p in model.module.parameters())
+print(f"Total model parameters: {total_params:,}")
+wandb.log({"total_parameters": total_params})
+
+# ── watch parameters & gradients in WandB ────────────────────────────────────
+wandb.watch(
+    model.module,
+    log="all",
+    log_freq=1000,
+    log_graph=False
+)
 
 model.view_anndata_setup()
 
@@ -217,6 +263,9 @@ model.train(logger=wandb_logger, check_val_every_n_epoch=5, **train_kwargs)
 model.save(args.model_dir, overwrite=True)
 wandb.log({"model_saved_to": args.model_dir})
 
+if args.imputedencoder:
+    model.module.encoder.finished_training = True
+
 # ------------------------------
 # 9. Compute UMAP
 # ------------------------------
@@ -227,10 +276,14 @@ sc.pp.neighbors(ad, use_rep='X_splicevi')
 sc.tl.umap(ad, min_dist=0.1)
 print("UMAP embedding done.")
 
+umap_color_key = "broad_cell_type"
+if args.simulated:
+    umap_color_key = "cell_type"
+
 # instead of just sc.pl.umap(ad, color="cell_type"), do:
 fig = sc.pl.umap(
     ad,
-    color="cell_type",
+    color=umap_color_key,
     show=False,          # don’t pop up the figure
     return_fig=True      # return the matplotlib Figure
 )
@@ -242,6 +295,79 @@ wandb.log({"umap_cell_type": wandb.Image(fig)})
 # clean up
 import matplotlib.pyplot as plt
 plt.close(fig)
+
+
+# ------------------------------
+# 12. Additional Tests
+# ------------------------------
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, silhouette_score
+from scvi import REGISTRY_KEYS
+import torch
+import numpy as np
+
+# after wandb.finish() or just before exiting:
+if args.simulated:
+    print("Running logistic regression on latent space…")
+    # Get latent embedding and labels
+    Z = ad.obsm["X_splicevi"]
+    y = ad.obs[umap_color_key].astype(str).values
+    # simple train/test split
+    from sklearn.model_selection import train_test_split
+    Z_train, Z_test, y_train, y_test = train_test_split(Z, y, test_size=0.2, random_state=0)
+    # fit classifier
+    clf = LogisticRegression(max_iter=1000)
+    clf.fit(Z_train, y_train)
+    y_pred = clf.predict(Z_test)
+    # compute metrics
+    acc = accuracy_score(y_test, y_pred)
+    prec = precision_score(y_test, y_pred, average="weighted", zero_division=0)
+    rec = recall_score(y_test, y_pred, average="weighted", zero_division=0)
+    f1 = f1_score(y_test, y_pred, average="weighted", zero_division=0)
+    # log to W&B
+    wandb.log({
+        "simulated/accuracy": acc,
+        "simulated/precision": prec,
+        "simulated/recall": rec,
+        "simulated/f1_score": f1,
+    })
+    print(f"LogReg — acc: {acc:.4f}, prec: {prec:.4f}, rec: {rec:.4f}, f1: {f1:.4f}")
+
+
+# ————————————————————————————————————————————————————————
+# Silhouette score on the learned latent space
+print("Computing silhouette score…")
+labels = ad.obs[umap_color_key].astype(str).values
+Z = ad.obsm["X_splicevi"]
+sil = silhouette_score(Z, labels)
+wandb.log({"silhouette_score": sil})
+print(f"Silhouette score ({umap_color_key}): {sil:.4f}")
+
+# ————————————————————————————————————————————————————————
+from scipy.stats import spearmanr
+# Correlation between decoder-predicted PSI and observed PSI
+print("Computing PSI prediction vs observed correlation…")
+# 1) pull out decoded splicing probs as a numpy array
+decoded = model.get_normalized_splicing(adata=ad, return_numpy=True)
+# 2) pull out observed PSI from the AnnData layer
+jr = ad.layers["junc_ratio"]
+obs = jr.toarray() if sparse.issparse(jr) else jr
+# 3) flatten both
+flat_decoded = decoded.ravel()
+flat_obs = obs.ravel()
+# 4) compute Pearson and Spearman
+pearson_corr = np.corrcoef(flat_decoded, flat_obs)[0, 1]
+spearman_corr, _ = spearmanr(flat_decoded, flat_obs)
+# 5) log to W&B
+wandb.log({
+    "psi_pred_obs_pearson_corr": pearson_corr,
+    "psi_pred_obs_spearman_corr": spearman_corr,
+})
+print(
+    f"Predicted vs observed PSI correlations — "
+    f"Pearson: {pearson_corr:.4f}, Spearman: {spearman_corr:.4f}"
+)
+
 
 # ------------------------------
 # 11. Finish
