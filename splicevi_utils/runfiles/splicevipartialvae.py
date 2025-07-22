@@ -345,8 +345,8 @@ print(f"Silhouette score ({umap_color_key}): {sil:.4f}")
 
 # ————————————————————————————————————————————————————————
 from scipy.stats import spearmanr
-# Correlation between decoder-predicted PSI and observed PSI
-print("Computing PSI prediction vs observed correlation…")
+# Correlation between decoder-predicted PSI and observed PSI (excluding zeros)
+print("Computing PSI prediction vs observed correlation (excluding zeros)…")
 # 1) pull out decoded splicing probs as a numpy array
 decoded = model.get_normalized_splicing(adata=ad, return_numpy=True)
 # 2) pull out observed PSI from the AnnData layer
@@ -355,18 +355,44 @@ obs = jr.toarray() if sparse.issparse(jr) else jr
 # 3) flatten both
 flat_decoded = decoded.ravel()
 flat_obs = obs.ravel()
-# 4) compute Pearson and Spearman
-pearson_corr = np.corrcoef(flat_decoded, flat_obs)[0, 1]
-spearman_corr, _ = spearmanr(flat_decoded, flat_obs)
-# 5) log to W&B
+# 4) filter for non-zero observed PSI
+mask = flat_obs != 0
+filtered_obs = flat_obs[mask]
+filtered_decoded = flat_decoded[mask]
+# 5) compute Pearson and Spearman
+pearson_corr = np.corrcoef(filtered_obs, filtered_decoded)[0, 1]
+spearman_corr, _ = spearmanr(filtered_obs, filtered_decoded)
+print(f"Predicted vs observed PSI correlations — Pearson: {pearson_corr:.4f}, Spearman: {spearman_corr:.4f}")
+# log to W&B
 wandb.log({
     "psi_pred_obs_pearson_corr": pearson_corr,
     "psi_pred_obs_spearman_corr": spearman_corr,
 })
-print(
-    f"Predicted vs observed PSI correlations — "
-    f"Pearson: {pearson_corr:.4f}, Spearman: {spearman_corr:.4f}"
-)
+
+# 6) scatterplot
+fig, ax = plt.subplots(figsize=(6,6))
+ax.scatter(filtered_obs, filtered_decoded, alpha=0.05, edgecolors="none")
+ax.set_xlabel("Observed PSI")
+ax.set_ylabel("Predicted PSI")
+ax.set_title("Predicted vs Observed PSI (Excluding Zeros)")
+# line of best fit
+m, b = np.polyfit(filtered_obs, filtered_decoded, 1)
+x_line = np.array([filtered_obs.min(), filtered_obs.max()])
+ax.plot(x_line, m*x_line + b, linewidth=2)
+wandb.log({"psi_scatter_excl_zeros": wandb.Image(fig)})
+plt.close(fig)
+
+# 7) hexbin plot
+fig_hex, ax_hex = plt.subplots(figsize=(6,6))
+hb = ax_hex.hexbin(filtered_obs, filtered_decoded, gridsize=100, mincnt=1)
+ax_hex.set_xlabel("Observed PSI")
+ax_hex.set_ylabel("Predicted PSI")
+ax_hex.set_title("Hexbin: Predicted vs Observed PSI (Excluding Zeros)")
+cb = fig_hex.colorbar(hb, ax=ax_hex)
+cb.set_label("Count")
+wandb.log({"psi_hexbin_excl_zeros": wandb.Image(fig_hex)})
+plt.close(fig_hex)
+
 
 
 # ------------------------------

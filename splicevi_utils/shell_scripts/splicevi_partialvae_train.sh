@@ -2,7 +2,7 @@
 #SBATCH --job-name=Splice_VI_PartialVAE_Training
 #SBATCH --mem=150G
 #SBATCH --partition=gpu
-#SBATCH --time=24:00:00
+#SBATCH --time=3:00:00
 #SBATCH --gres=gpu:1
 
 ### ─── USER EDITABLE CONFIG ────────────────────────────────────────────── ###
@@ -32,7 +32,7 @@ ADATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/TMS_MODELING/DATA_FILES/SIMUL
 DROPOUT_RATE=0.01           # --dropout_rate (default: 0.0)
 #LEARN_CONCENTRATION=false   # --learn_concentration (default: true)
 SPLICE_LIKELIHOOD="dirichlet_multinomial" # --splice_likelihood (default: "beta_binomial")
-ENCODER_TYPE="PartialEncoder"              # --encoder_type
+ENCODER_TYPE="PartialEncoderImpute"              # --encoder_type
 JUNCTION_INCLUSION="all_junctions"         # --junction_inclusion
 POOL_MODE="mean"                      # --pool_mode (mean or sum)
 

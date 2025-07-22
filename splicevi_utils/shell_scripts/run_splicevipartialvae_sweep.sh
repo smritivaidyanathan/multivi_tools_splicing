@@ -7,11 +7,14 @@
 ADATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/TMS_MODELING/DATA_FILES/SIMULATED/simulated_data_2025-03-12.h5ad"
 DROPOUT_RATE=0.01
 SPLICE_LIKELIHOOD="dirichlet_multinomial"
-MAX_EPOCHS=300
+MAX_EPOCHS=500
 LR=1e-5
 BATCH_SIZE=256
 N_EPOCHS_KL_WARMUP=50
 SIMULATED=true
+
+# Sweep over multiple code dimensions
+CODE_DIMS=(64)
 
 # Conda & script location
 CONDA_BASE="/gpfs/commons/home/svaidyanathan/miniconda3"
@@ -35,7 +38,7 @@ cat > "$BATCH_RUN_DIR/job_template.sh" << 'EOF'
 #SBATCH --mem=150G
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --time=5:00:00
+#SBATCH --time=12:00:00
 
 # Debug prints
 echo "→ Job: $JOB_NAME"
@@ -43,6 +46,7 @@ echo "   ADATA_PATH= $ADATA_PATH"
 echo "   ENCODER_TYPE= $ENCODER_TYPE"
 echo "   POOL_MODE= $POOL_MODE"
 echo "   JUNCTION_INCLUSION= $JUNCTION_INCLUSION"
+echo "   CODE_DIM= $CODE_DIM"
 echo "   IMPUTEDENCODER= $IMPUTEDENCODER"
 
 # Activate Conda environment
@@ -61,6 +65,7 @@ python "$SCRIPT_PATH" \
   ${BATCH_SIZE:+--batch_size "$BATCH_SIZE"} \
   ${N_EPOCHS_KL_WARMUP:+--n_epochs_kl_warmup "$N_EPOCHS_KL_WARMUP"} \
   ${SIMULATED:+--simulated} \
+  ${CODE_DIM:+--code_dim "$CODE_DIM"} \
   ${ENCODER_TYPE:+--encoder_type "$ENCODER_TYPE"} \
   ${POOL_MODE:+--pool_mode "$POOL_MODE"} \
   ${JUNCTION_INCLUSION:+--junction_inclusion "$JUNCTION_INCLUSION"} \
@@ -75,14 +80,24 @@ echo "→ Job template written. Submitting sweep jobs..."
 ENCODER_TYPES=(
   "PartialEncoder"
   "PartialEncoder"
+  "PartialEncoderEDDI"
+  "PartialEncoderEDDI"
+  "PartialEncoderEDDIGNN"
+  "PartialEncoderEDDIGNN"
   "PartialEncoderWeightedSum"
   "PartialEncoderWeightedSum"
-  "PartialEncoderImpute"
+  "PartialEncoderWeightedSumEDDI"
+  "PartialEncoderWeightedSumEDDI"
   "PartialEncoderImpute"
 )
 POOL_MODES=(
   "sum"
   "mean"
+  "sum"
+  "mean"
+  "sum"
+  "mean"
+  ""
   ""
   ""
   ""
@@ -91,44 +106,50 @@ POOL_MODES=(
 JUNCTION_INCLUSIONS=(
   ""
   ""
+  ""
+  ""
+  ""
+  ""
+  "observed_junctions"
+  "all_junctions"
   "observed_junctions"
   "all_junctions"
   "all_junctions"
-  "observed_junctions"
 )
 
 # 3) Loop and submit
-for i in "${!ENCODER_TYPES[@]}"; do
-  ENCODER_TYPE="${ENCODER_TYPES[$i]}"
-  POOL_MODE="${POOL_MODES[$i]}"
-  JUNCTION_INCLUSION="${JUNCTION_INCLUSIONS[$i]}"
-  
-  # Only PartialEncoderImpute needs the imputed flag
-  if [ "$ENCODER_TYPE" = "PartialEncoderImpute" ]; then
-    IMPUTEDENCODER=true
-  else
-    IMPUTEDENCODER=
-  fi
-  
-  JOB_NAME="sweep_${i}_${ENCODER_TYPE}"
-  [ -n "$POOL_MODE" ] && JOB_NAME+="_pool=${POOL_MODE}"
-  [ -n "$JUNCTION_INCLUSION" ] && JOB_NAME+="_jinc=${JUNCTION_INCLUSION}"
+for CODE_DIM in "${CODE_DIMS[@]}"; do
+  for i in "${!ENCODER_TYPES[@]}"; do
+    ENCODER_TYPE="${ENCODER_TYPES[$i]}"
+    POOL_MODE="${POOL_MODES[$i]}"
+    JUNCTION_INCLUSION="${JUNCTION_INCLUSIONS[$i]}"
 
-  JOB_DIR="$BATCH_RUN_DIR/$JOB_NAME"
-  mkdir -p "$JOB_DIR/models" "$JOB_DIR/figures"
-  MODEL_DIR="$JOB_DIR/models"
-  FIG_DIR="$JOB_DIR/figures"
+    # Only PartialEncoderImpute needs the imputed flag
+    if [ "$ENCODER_TYPE" = "PartialEncoderImpute" ]; then
+      IMPUTEDENCODER=true
+    else
+      IMPUTEDENCODER=
+    fi
 
-  echo "→ Submitting: $JOB_NAME"
-  sbatch \
-    --job-name="$JOB_NAME" \
-    --output="$JOB_DIR/slurm_%j.out" \
-    --error="$JOB_DIR/slurm_%j.err" \
-    --mem=150G \
-    --partition=gpu \
-    --gres=gpu:1 \
-    --time=5:00:00 \
-    --export=\
+    JOB_NAME="sweep_cd${CODE_DIM}_${i}_${ENCODER_TYPE}"
+    [ -n "$POOL_MODE" ]       && JOB_NAME+="_pool=${POOL_MODE}"
+    [ -n "$JUNCTION_INCLUSION" ] && JOB_NAME+="_jinc=${JUNCTION_INCLUSION}"
+
+    JOB_DIR="$BATCH_RUN_DIR/$JOB_NAME"
+    mkdir -p "$JOB_DIR/models" "$JOB_DIR/figures"
+    MODEL_DIR="$JOB_DIR/models"
+    FIG_DIR="$JOB_DIR/figures"
+
+    echo "→ Submitting: $JOB_NAME"
+    sbatch \
+      --job-name="$JOB_NAME" \
+      --output="$JOB_DIR/slurm_%j.out" \
+      --error="$JOB_DIR/slurm_%j.err" \
+      --mem=150G \
+      --partition=gpu \
+      --gres=gpu:1 \
+      --time=5:00:00 \
+      --export=\
 JOB_NAME="$JOB_NAME",\
 JOB_DIR="$JOB_DIR",\
 CONDA_BASE="$CONDA_BASE",\
@@ -144,12 +165,15 @@ LR="$LR",\
 BATCH_SIZE="$BATCH_SIZE",\
 N_EPOCHS_KL_WARMUP="$N_EPOCHS_KL_WARMUP",\
 SIMULATED="$SIMULATED",\
+CODE_DIM="$CODE_DIM",\
 ENCODER_TYPE="$ENCODER_TYPE",\
 POOL_MODE="$POOL_MODE",\
 JUNCTION_INCLUSION="$JUNCTION_INCLUSION",\
 IMPUTEDENCODER="$IMPUTEDENCODER" \
-    "$BATCH_RUN_DIR/job_template.sh"
+      "$BATCH_RUN_DIR/job_template.sh"
+  done
 done
 
-echo "→ All sweep jobs submitted. Monitor with: squeue -u \$(whoami)"
+echo "→ All sweep jobs (code_dim ∈ ${CODE_DIMS[*]}) submitted."
+echo "→ Monitor with: squeue -u $(whoami)"
 echo "→ Logs and outputs in: $BATCH_RUN_DIR"

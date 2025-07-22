@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=MultiVI-Splice-Training
-#SBATCH --mem=150G
+#SBATCH --mem=300G
 #SBATCH --partition=gpu
-#SBATCH --time=20:00:00
+#SBATCH --time=96:00:00
 #SBATCH --gres=gpu:1
 
 ### ─── USER EDITABLE CONFIG ────────────────────────────────────────────── ###
@@ -18,7 +18,7 @@
 # ───────────────────────────────────────────────────────────────────────────
 
 # Required
-#MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/aligned__ge_splice_combined_20250513_035938.h5mu"
+#MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/train_70_30_ge_splice_combined_20250513_035938.h5mu"
 # Test on subset of data
 # MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu"
 MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/052025/SUBSETTOP5CELLSTYPES_aligned__ge_splice_combined_20250513_035938.h5mu"
@@ -46,7 +46,7 @@ EXPRESSION_ARCHITECTURE="linear"   # --expression_architecture (default: "vanill
 # FULLY_PAIRED="false"           # --fully_paired (default: false)
 
 # Optional hyperparams for TRAINING (uncomment to override; defaults in parentheses):
-MAX_EPOCHS=500                   # --max_epochs (default: 500)
+MAX_EPOCHS=1000                   # --max_epochs (default: 500)
 LR=0.000001                        # --lr (default: 1e-4)
 # ACCELERATOR="auto"             # --accelerator (default: "auto")
 # DEVICES="auto"                 # --devices (default: "auto")
