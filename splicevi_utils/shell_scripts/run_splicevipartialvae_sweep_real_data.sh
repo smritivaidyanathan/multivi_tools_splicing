@@ -4,7 +4,9 @@
 
 ### ─── USER CONFIG ─────────────────────────────────────────────────────────
 # Default data & hyperparameters (override in-script or via sbatch --export)
-ADATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/TMS_MODELING/DATA_FILES/SIMULATED/simulated_data_2025-03-12.h5ad"
+TRAIN_MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/train_70_30_ge_splice_combined_20250730_164104.h5mu"
+TEST_MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/train_70_30_ge_splice_combined_20250730_164104.h5mu"
+
 DROPOUT_RATE=0.01
 SPLICE_LIKELIHOOD="dirichlet_multinomial"
 MAX_EPOCHS=750
@@ -19,7 +21,7 @@ CODE_DIMS=(64)
 # Conda & script location
 CONDA_BASE="/gpfs/commons/home/svaidyanathan/miniconda3"
 ENV_NAME="scvi-env"
-SCRIPT_PATH="/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/splicevi_utils/runfiles/splicevipartialvae.py"
+SCRIPT_PATH="/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/splicevi_utils/runfiles/splicevipartialvae_realdata.py"
 
 # Batch output directory
 BASE_RUN_DIR="/gpfs/commons/home/svaidyanathan/splice_vi_partial_vae_sweep"
@@ -42,7 +44,8 @@ cat > "$BATCH_RUN_DIR/job_template.sh" << 'EOF'
 
 # Debug prints
 echo "→ Job: $JOB_NAME"
-echo "   ADATA_PATH= $ADATA_PATH"
+echo "   TRAIN_ADATA_PATH= $TRAIN_ADATA_PATH"
+echo "   TEST_ADATA_PATH= $TEST_ADATA_PATH"
 echo "   ENCODER_TYPE= $ENCODER_TYPE"
 echo "   POOL_MODE= $POOL_MODE"
 echo "   JUNCTION_INCLUSION= $JUNCTION_INCLUSION"
@@ -55,7 +58,8 @@ conda activate "$ENV_NAME"
 
 # Run the Python script with CLI flags built from env vars
 python "$SCRIPT_PATH" \
-  ${ADATA_PATH:+--adata_path "$ADATA_PATH"} \
+  ${TRAIN_MUDATA_PATH:+--train_adata_path "$TRAIN_MUDATA_PATH"} \
+  ${TEST_MUDATA_PATH:+--test_adata_path "$TEST_MUDATA_PATH"} \
   ${MODEL_DIR:+--model_dir "$MODEL_DIR"} \
   ${FIG_DIR:+--fig_dir "$FIG_DIR"} \
   ${DROPOUT_RATE:+--dropout_rate "$DROPOUT_RATE"} \
@@ -149,7 +153,8 @@ JOB_DIR="$JOB_DIR",\
 CONDA_BASE="$CONDA_BASE",\
 ENV_NAME="$ENV_NAME",\
 SCRIPT_PATH="$SCRIPT_PATH",\
-ADATA_PATH="$ADATA_PATH",\
+TRAIN_ADATA_PATH="$ADATA_PATH",\
+TEST_ADATA_PATH="$ADATA_PATH",\
 MODEL_DIR="$MODEL_DIR",\
 FIG_DIR="$FIG_DIR",\
 DROPOUT_RATE="$DROPOUT_RATE",\
