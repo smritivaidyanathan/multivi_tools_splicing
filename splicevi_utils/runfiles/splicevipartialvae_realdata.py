@@ -14,7 +14,6 @@ import numpy as np
 from scipy import sparse
 import torch
 
-
 # ------------------------------
 # 0. Default Paths (CLI-overridable)
 # ------------------------------
@@ -78,8 +77,6 @@ parser.add_argument(
     help="If set, compute correlation between model.module.impute_net output and original junc_ratio."
 )
 
-
-
 # model init params
 for name, default in init_defaults.items():
     arg_type = type(default) if default is not None else float
@@ -126,39 +123,17 @@ wandb.init(project="splicevi-partialvae", config=full_config)
 wandb_logger = WandbLogger(project="splicevi-partialvae", config=full_config)
 
 # ------------------------------
-# 6. Load AnnData & Preprocess
+# 6. Load Training MuData & Preprocess
 # ------------------------------
 print(f"Loading Training MuData from {args.train_adata_path}…")
-
 import mudata as mu
-print("Loading Training AnnData")
 mdata = mu.read_h5mu(args.train_adata_path)
-# grab the splicing modality
 ad = mdata["splicing"]
 
 if args.imputedencoder:
-    print("Is Using Impected Decoder!")
+    print(">>> Using imputed decoder variant")
 else:
-    print("Is Not Using Imputed Decoder!")
-
-# # Check if any NaNs in junc_ratio 
-# X = ad.layers["junc_ratio"] 
-
-# # Step 1: Compute mean of non-NaN values per column (axis=0)
-# col_means = np.nanmean(X, axis=0)
-
-# # Step 2: Subtract column means from non-NaN entries
-# X_centered = X - col_means[np.newaxis, :]  # broadcast subtraction
-
-# # Step 3: Replace NaNs (which are now just untouched entries) with 0
-# X_centered[np.isnan(X_centered)] = 0.0
-
-# # X should be of shape (num_samples, input_dim)
-# CODE_DIM = args.code_dim or init_defaults.get("code_dim", 16)  # fallback if None
-# print(f"↪ Using CODE_DIM = {CODE_DIM} for PCA")
-# pca = PCA(n_components=CODE_DIM)
-# X_pca = pca.fit_transform(X_centered)  # shape: (n_cells, CODE_DIM)
-# pca_components = pca.components_.T  # shape: (input_dim, code_dim)
+    print(">>> Using standard decoder")
 
 # Layer names
 x_layer = "junc_ratio"
@@ -166,8 +141,7 @@ junction_counts_layer = "cell_by_junction_matrix"
 cluster_counts_layer = "cell_by_cluster_matrix"
 mask_layer = "psi_mask"
 
-print(f"Found Layers: {ad.layers}")
-
+print(f"Found layers in training AnnData: {list(ad.layers.keys())}")
 
 print("Setting up SpliceVI PartialVAE…")
 scvi.model.SPLICEVI.setup_anndata(
@@ -178,73 +152,37 @@ scvi.model.SPLICEVI.setup_anndata(
     psi_mask_layer=mask_layer,
     batch_key=None  
 )
-# ------------------------------
-# 7. Setup model
-# ------------------------------
 
-# model init kwargs
-model_kwargs = {name: getattr(args, name) for name in init_defaults if getattr(args, name) is not None}
-print("Initializing model with:", model_kwargs)
+# ------------------------------
+# 7. Initialize model
+# ------------------------------
+model_kwargs = {
+    name: getattr(args, name)
+    for name in init_defaults
+    if getattr(args, name) is not None
+}
+print("Initializing model with parameters:", model_kwargs)
 model = scvi.model.SPLICEVI(ad, **model_kwargs)
-# model.view_anndata_setup()
 
-# # Initialize model
-# model = scvi.model.SPLICEVI(
-#     adata=ad,
-#     code_dim=CODE_DIM,
-#     h_hidden_dim=64,
-#     encoder_hidden_dim=128,
-#     latent_dim=10,
-#     dropout_rate=0.01,
-#     learn_concentration=False,
-#     splice_likelihood="binomial"
-# )
-
-# ── count & log total parameters ─────────────────────────────────────────────
+# count & log total parameters
 total_params = sum(p.numel() for p in model.module.parameters())
 print(f"Total model parameters: {total_params:,}")
 wandb.log({"total_parameters": total_params})
 
-# ── watch parameters & gradients in WandB ────────────────────────────────────
-wandb.watch(
-    model.module,
-    log="all",
-    log_freq=1000,
-    log_graph=False
-)
+# watch parameters & gradients in WandB
+wandb.watch(model.module, log="all", log_freq=1000, log_graph=False)
 
 model.view_anndata_setup()
-
-# # Add PCA embedding for initialization
-# # Get feature embedding before PCA init
-# pca_tensor = torch.tensor(pca_components, dtype=model.module.encoder.feature_embedding.dtype)
-# embedding_tensor = model.module.encoder.feature_embedding.detach()
-
-# diff = torch.norm(embedding_tensor - pca_tensor).item()
-# print(f"L2 norm between PCA loadings and random model embedding: {diff:.6f}")
-
-# model.module.initialize_feature_embedding_from_pca(pca_components)
-# pca_tensor = torch.tensor(pca_components, dtype=model.module.encoder.feature_embedding.dtype)
-# embedding_tensor = model.module.encoder.feature_embedding.detach()
-# diff = torch.norm(embedding_tensor - pca_tensor).item()
-# print(f"L2 norm between initialized PCA and model embedding: {diff:.6f}")
-
 
 # ------------------------------
 # 8. Train
 # ------------------------------
-train_kwargs = {name: getattr(args, name) for name in train_defaults if getattr(args, name) is not None}
-print("Training with:", train_kwargs)
-# model.train(
-#     max_epochs=100,
-#     lr=1e-2,
-#     batch_size=512,
-#     early_stopping=True,
-#     n_epochs_kl_warmup=10,
-#     weight_decay=0,
-#     save_best=False,
-#     check_val_every_n_epoch=5,
-# )
+train_kwargs = {
+    name: getattr(args, name)
+    for name in train_defaults
+    if getattr(args, name) is not None
+}
+print("Starting training with settings:", train_kwargs)
 model.train(logger=wandb_logger, check_val_every_n_epoch=5, **train_kwargs)
 model.save(args.model_dir, overwrite=True)
 wandb.log({"model_saved_to": args.model_dir})
@@ -255,141 +193,180 @@ if args.imputedencoder:
 # ------------------------------
 # 9. Compute UMAP
 # ------------------------------
-import scanpy as sc
 print("Computing latent representation and UMAP…")
 ad.obsm['X_splicevi'] = model.get_latent_representation()
 sc.pp.neighbors(ad, use_rep='X_splicevi')
 sc.tl.umap(ad, min_dist=0.1)
-print("UMAP embedding done.")
+print("UMAP embedding complete.")
 
 umap_color_key = "broad_cell_type"
 cell_type_classification_key = "medium_cell_type"
 
-# instead of just sc.pl.umap(ad, color="cell_type"), do:
 fig = sc.pl.umap(
     ad,
     color=umap_color_key,
-    show=False,          # don’t pop up the figure
-    return_fig=True      # return the matplotlib Figure
+    show=False,
+    return_fig=True
 )
-
-# log it to wandb
-import wandb
+fig.tight_layout()
 wandb.log({"umap_cell_type": wandb.Image(fig)})
-
-# clean up
-import matplotlib.pyplot as plt
 plt.close(fig)
 
-
 # ------------------------------
-# 12. Additional Tests
+# 10. Unified Evaluation on TRAIN only
 # ------------------------------
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, silhouette_score
-from scvi import REGISTRY_KEYS
-import torch
-import numpy as np
-
-
-print("Running logistic regression on latent space…")
-
-print("Loading Testing AnnData...")
-mdata = None
-ad = None
-
-mdata = mu.read_h5mu(args.test_adata_path)
-# grab the splicing modality
-ad = mdata["splicing"]
-
-# Get latent embedding and labels
-Z = ad.obsm["X_splicevi"]
-y = ad.obs[cell_type_classification_key].astype(str).values
-# simple train/test split
 from sklearn.model_selection import train_test_split
-Z_train, Z_test, y_train, y_test = train_test_split(Z, y, test_size=0.2, random_state=0)
-# fit classifier
-clf = LogisticRegression(max_iter=1000)
-clf.fit(Z_train, y_train)
-y_pred = clf.predict(Z_test)
-# compute metrics
-acc = accuracy_score(y_test, y_pred)
-prec = precision_score(y_test, y_pred, average="weighted", zero_division=0)
-rec = recall_score(y_test, y_pred, average="weighted", zero_division=0)
-f1 = f1_score(y_test, y_pred, average="weighted", zero_division=0)
-# log to W&B
-wandb.log({
-    "real/accuracy": acc,
-    "real/precision": prec,
-    "real/recall": rec,
-    "real/f1_score": f1,
-})
-print(f"LogReg — acc: {acc:.4f}, prec: {prec:.4f}, rec: {rec:.4f}, f1: {f1:.4f}")
-
-
-# ————————————————————————————————————————————————————————
-# Silhouette score on the learned latent space
-print("Computing silhouette score…")
-labels = ad.obs[cell_type_classification_key].astype(str).values
-Z = ad.obsm["X_splicevi"]
-sil = silhouette_score(Z, labels)
-wandb.log({"real/silhouette_score": sil})
-print(f"Silhouette score ({cell_type_classification_key}): {sil:.4f}")
-
-# ————————————————————————————————————————————————————————
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score,
+    f1_score, silhouette_score
+)
 from scipy.stats import spearmanr
-# Correlation between decoder-predicted PSI and observed PSI (excluding zeros)
-print("Computing PSI prediction vs observed correlation (excluding zeros)…")
-# 1) pull out decoded splicing probs as a numpy array
-decoded = model.get_normalized_splicing(adata=ad, return_numpy=True)
-# 2) pull out observed PSI from the AnnData layer
-jr = ad.layers["junc_ratio"]
-obs = jr.toarray() if sparse.issparse(jr) else jr
-# 3) flatten both
-flat_decoded = decoded.ravel()
-flat_obs = obs.ravel()
-# 4) filter for non-zero observed PSI
-mask = flat_obs != 0
-filtered_obs = flat_obs[mask]
-filtered_decoded = flat_decoded[mask]
-# 5) compute Pearson and Spearman
-pearson_corr = np.corrcoef(filtered_obs, filtered_decoded)[0, 1]
-spearman_corr, _ = spearmanr(filtered_obs, filtered_decoded)
-print(f"Predicted vs observed PSI correlations — Pearson: {pearson_corr:.4f}, Spearman: {spearman_corr:.4f}")
-# log to W&B
+
+def evaluate_split(name: str, adata, mask_coords=None):
+    print(f"\n=== Evaluating {name.upper()} split ===")
+    # latent representation
+    Z = model.get_latent_representation(adata=adata)
+    labels = adata.obs[cell_type_classification_key].astype(str).values
+
+    # 1) silhouette score
+    sil = silhouette_score(Z, labels)
+    print(f"[{name}] silhouette score: {sil:.4f}")
+    wandb.log({f"real-{name}/silhouette_score": sil})
+
+    # 2) train/test logistic regression
+    Z_tr, Z_ev, y_tr, y_ev = train_test_split(Z, labels, test_size=0.2, random_state=0)
+    clf = LogisticRegression(max_iter=1000)
+    clf.fit(Z_tr, y_tr)
+    y_pred = clf.predict(Z_ev)
+    acc = accuracy_score(y_ev, y_pred)
+    prec = precision_score(y_ev, y_pred, average="weighted", zero_division=0)
+    rec = recall_score(y_ev, y_pred, average="weighted", zero_division=0)
+    f1 = f1_score(y_ev, y_pred, average="weighted", zero_division=0)
+    print(f"[{name}] LR — acc: {acc:.4f}, prec: {prec:.4f}, rec: {rec:.4f}, f1: {f1:.4f}")
+    wandb.log({
+        f"real-{name}/accuracy": acc,
+        f"real-{name}/precision": prec,
+        f"real-{name}/recall": rec,
+        f"real-{name}/f1_score": f1,
+    })
+
+    # 3) observed PSI correlation (Pearson & Spearman)
+    decoded = model.get_normalized_splicing(adata=adata, return_numpy=True)
+    jr = adata.layers["junc_ratio"]
+    obs = jr.toarray() if sparse.issparse(jr) else jr
+    flat_obs = obs.ravel()
+    flat_dec = decoded.ravel()
+    # get the binary mask matrix
+    mask_mat = adata.layers["psi_mask"]
+
+    # turn into 1D boolean index
+    if sparse.issparse(mask_mat):
+        mask_flat = mask_mat.toarray().ravel().astype(bool)
+    else:
+        mask_flat = mask_mat.ravel().astype(bool)
+
+    # allow for your optional override
+    if mask_coords is not None:
+        mask_flat = mask_coords
+
+    # now filter
+    filt_obs = flat_obs[mask_flat]
+    filt_dec = flat_dec[mask_flat]
+
+    pearson = np.corrcoef(filt_obs, filt_dec)[0, 1]
+    spearman = spearmanr(filt_obs, filt_dec)[0]
+    print(f"[{name}] PSI corr — Pearson: {pearson:.4f}, Spearman: {spearman:.4f}")
+    wandb.log({
+        f"real-{name}/psi_pearson_corr": pearson,
+        f"real-{name}/psi_spearman_corr": spearman,
+    })
+
+    # 4) age regression (splicing latent)
+    from sklearn.linear_model import RidgeCV
+    from sklearn.preprocessing import StandardScaler
+
+    # pull age vector (replace 'age_numeric' with 'age' if that's your obs field)
+    ages = adata.obs['age'].astype(float).values  
+
+    # standardize latent factors
+    X_latent = StandardScaler().fit_transform(Z)
+
+    # train/test split
+    X_tr, X_ev, y_tr, y_ev = train_test_split(
+        X_latent, ages, test_size=0.2, random_state=0
+    )
+    # fit ridge on splice‐only latent space
+    ridge_sp = RidgeCV(alphas=np.logspace(-2, 3, 20), cv=5).fit(X_tr, y_tr)
+    r2_age = ridge_sp.score(X_ev, y_ev)
+
+    print(f"[{name}] age regression R²: {r2_age:.4f}")
+    wandb.log({f"real-{name}/age_r2": r2_age})
+
+# run evaluation on training data
+evaluate_split("train", ad)
+
+# free training data from memory
+print("Cleaning up training data from memory…")
+del ad, mdata
+torch.cuda.empty_cache()
+
+# ------------------------------
+# 11. TEST split + masked‐junction imputation
+# ------------------------------
+print("\nLoading TEST MuData for evaluation and imputation…")
+mdata = mu.read_h5mu(args.test_adata_path)
+ad_test = mdata["splicing"]
+
+# real-test evaluation
+evaluate_split("test", ad_test)
+
+# ------------------------------
+# 11. TEST split + masked‐ATSE imputation
+# ------------------------------
+del ad_test, mdata
+torch.cuda.empty_cache()
+
+print("\n=== Masked‐ATSE imputation on TEST ===")
+MASK_FRACTION = 0.2  # fraction of ATSEs to mask
+mdata = mu.read_h5mu(args.mask_test_adata_path)
+ad_masked = mdata["splicing"]
+
+# 6) run imputation and evaluate on masked-out entries using the masked‐original layer
+print("Step 6: running imputation and computing correlations")
+model.module.eval()
+with torch.no_grad():
+    decoded = model.get_normalized_splicing(adata=ad_masked, return_numpy=True)
+flat_dec = decoded.ravel()
+
+# pull masked-original values
+masked_orig = ad_masked.layers["junc_ratio_masked_original"]
+orig_arr = masked_orig.toarray() if sparse.issparse(masked_orig) else masked_orig
+flat_orig = orig_arr.ravel()
+
+# only keep the entries that were artificially masked (non-zero in the masked_original layer)
+mask_idx = flat_orig != 0
+orig_vals = flat_orig[mask_idx]
+pred_vals = flat_dec[mask_idx]
+
+# compute correlations
+pearson_m = np.corrcoef(orig_vals, pred_vals)[0, 1]
+spearman_m = spearmanr(orig_vals, pred_vals)[0]
+print(f"[impute-test] masked‐ATSE PSI corr — Pearson: {pearson_m:.4f}, Spearman: {spearman_m:.4f}")
+
 wandb.log({
-    "real/psi_pred_obs_pearson_corr": pearson_corr,
-    "real/psi_pred_obs_spearman_corr": spearman_corr,
+    "impute-test/psi_pearson_corr_masked_atse": pearson_m,
+    "impute-test/psi_spearman_corr_masked_atse": spearman_m,
 })
 
-# 6) scatterplot
-fig, ax = plt.subplots(figsize=(6,6))
-ax.scatter(filtered_obs, filtered_decoded, alpha=0.05, edgecolors="none")
-ax.set_xlabel("Observed PSI")
-ax.set_ylabel("Predicted PSI")
-ax.set_title("Predicted vs Observed PSI (Excluding Zeros)")
-# line of best fit
-m, b = np.polyfit(filtered_obs, filtered_decoded, 1)
-x_line = np.array([filtered_obs.min(), filtered_obs.max()])
-ax.plot(x_line, m*x_line + b, linewidth=2)
-wandb.log({"psi_scatter_excl_zeros": wandb.Image(fig)})
-plt.close(fig)
-
-# 7) hexbin plot
-fig_hex, ax_hex = plt.subplots(figsize=(6,6))
-hb = ax_hex.hexbin(filtered_obs, filtered_decoded, gridsize=100, mincnt=1)
-ax_hex.set_xlabel("Observed PSI")
-ax_hex.set_ylabel("Predicted PSI")
-ax_hex.set_title("Hexbin: Predicted vs Observed PSI (Excluding Zeros)")
-cb = fig_hex.colorbar(hb, ax=ax_hex)
-cb.set_label("Count")
-wandb.log({"real/psi_hexbin_excl_zeros": wandb.Image(fig_hex)})
-plt.close(fig_hex)
-
+# cleanup TEST data
+print("Cleaning up test data from memory…")
+del ad_test, ad_masked, mdata
+torch.cuda.empty_cache()
 
 
 # ------------------------------
-# 11. Finish
+# 12. Finish
 # ------------------------------
-print("Pipeline complete.")
+print("Pipeline complete. Finishing W&B run.")
 wandb.finish()

@@ -4,12 +4,12 @@
 
 ### ─── USER CONFIG ─────────────────────────────────────────────────────────
 # Default data & hyperparameters (override in-script or via sbatch --export)
-TRAIN_MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/train_70_30_ge_splice_combined_20250730_164104.h5mu"
-TEST_MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/train_70_30_ge_splice_combined_20250730_164104.h5mu"
+TRAIN_ADATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/train_70_30_ge_splice_combined_20250730_164104.h5mu"
+TEST_ADATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/test_30_70_ge_splice_combined_20250730_164104.h5mu"
 
 DROPOUT_RATE=0.01
 SPLICE_LIKELIHOOD="dirichlet_multinomial"
-MAX_EPOCHS=750
+MAX_EPOCHS=1
 LR=1e-5
 BATCH_SIZE=256
 N_EPOCHS_KL_WARMUP=50
@@ -58,8 +58,8 @@ conda activate "$ENV_NAME"
 
 # Run the Python script with CLI flags built from env vars
 python "$SCRIPT_PATH" \
-  ${TRAIN_MUDATA_PATH:+--train_adata_path "$TRAIN_MUDATA_PATH"} \
-  ${TEST_MUDATA_PATH:+--test_adata_path "$TEST_MUDATA_PATH"} \
+  ${TRAIN_ADATA_PATH:+--train_adata_path "$TRAIN_ADATA_PATH"} \
+  ${TEST_ADATA_PATH:+--test_adata_path "$TEST_ADATA_PATH"} \
   ${MODEL_DIR:+--model_dir "$MODEL_DIR"} \
   ${FIG_DIR:+--fig_dir "$FIG_DIR"} \
   ${DROPOUT_RATE:+--dropout_rate "$DROPOUT_RATE"} \
@@ -82,7 +82,7 @@ echo "→ Job template written. Submitting sweep jobs..."
 
 # 2) Define sweep configurations
 ENCODER_TYPES=(
-  # "PartialEncoderEDDI"
+  "PartialEncoderEDDI"
   # "PartialEncoderEDDI"
   # "PartialEncoderEDDIATSE"
   # "PartialEncoderEDDIATSE"
@@ -90,10 +90,10 @@ ENCODER_TYPES=(
   # "PartialEncoderEDDIATSEL"
   # "PartialEncoderWeightedSumEDDI"
   # "PartialEncoderWeightedSumEDDIMultiWeight"
-  "PartialEncoderWeightedSumEDDIMultiWeightATSE"
+  # "PartialEncoderWeightedSumEDDIMultiWeightATSE"
 )
 POOL_MODES=(
-  # "sum"
+  "sum"
   # "mean"
   # "sum"
   # "mean"
@@ -101,10 +101,10 @@ POOL_MODES=(
   # "mean"
   # ""
   # ""
-  ""
+  # ""
 )
 JUNCTION_INCLUSIONS=(
-#   ""
+  ""
 #   ""
 #   ""
 #   ""
@@ -112,7 +112,7 @@ JUNCTION_INCLUSIONS=(
 #   ""
   # "observed_junctions"
   # # "observed_junctions"
-  "observed_junctions"
+  # "observed_junctions"
 )
 
 # 3) Loop and submit
@@ -143,7 +143,7 @@ for CODE_DIM in "${CODE_DIMS[@]}"; do
       --job-name="$JOB_NAME" \
       --output="$JOB_DIR/slurm_%j.out" \
       --error="$JOB_DIR/slurm_%j.err" \
-      --mem=150G \
+      --mem=300G \
       --partition=gpu \
       --gres=gpu:1 \
       --time=12:00:00 \
@@ -153,8 +153,8 @@ JOB_DIR="$JOB_DIR",\
 CONDA_BASE="$CONDA_BASE",\
 ENV_NAME="$ENV_NAME",\
 SCRIPT_PATH="$SCRIPT_PATH",\
-TRAIN_ADATA_PATH="$ADATA_PATH",\
-TEST_ADATA_PATH="$ADATA_PATH",\
+TRAIN_ADATA_PATH="$TRAIN_ADATA_PATH",\
+TEST_ADATA_PATH="$TEST_ADATA_PATH",\
 MODEL_DIR="$MODEL_DIR",\
 FIG_DIR="$FIG_DIR",\
 DROPOUT_RATE="$DROPOUT_RATE",\
