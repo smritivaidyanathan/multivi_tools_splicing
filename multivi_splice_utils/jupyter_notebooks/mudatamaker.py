@@ -83,6 +83,15 @@ atse_anndata.var["modality"] = "Splicing"
 # %%
 common_obs = atse_anndata.obs.copy()
 common_obs["modality"] = "paired"  # if needed; adjust as required
+
+# ── NEW: parse out months as an integer
+common_obs["age_numeric"] = (
+    common_obs["age"]
+    .str.rstrip("m")      # drop trailing 'm'
+    .astype(int)          # convert to integer
+)
+
+
 print("Common obs shape:", common_obs.shape)
 
 # Update both AnnData objects:
@@ -177,7 +186,7 @@ mdata.obsm["X_library_size"] = ge_anndata.obsm["X_library_size"]
 
 # List of shared obs fields to pull up
 shared_obs_keys = [
-    'cell_id', 'age', 'cell_ontology_class', 'mouse.id', 'sex', 'tissue', 'dataset', 'broad_cell_type', 'cell_id_index', 'cell_name', 'modality'
+    'cell_id', 'age', 'age', 'cell_ontology_class', 'mouse.id', 'sex', 'tissue', 'dataset', 'broad_cell_type', 'medium_cell_type', 'specific_cell_type', 'cell_id_index', 'cell_name', 'modality', 'age_numeric'
 ]
 
 # We'll assume 'rna' modality has them all and they match 'splicing'
@@ -194,19 +203,22 @@ print(mdata)
 # %% [markdown]
 # ## 8. Stratified train/test split
 
-# %%
 from sklearn.model_selection import train_test_split
 
-# 1) Grab all cell IDs and their labels
-cells      = mdata.obs_names.to_list()
-cell_types = mdata.obs["broad_cell_type"].values
+cells        = mdata.obs_names.to_list()
+cell_types   = mdata.obs["broad_cell_type"].values
+age_numeric  = mdata.obs["age_numeric"].values
 
-# 2) Split into train (70%) / test (30%) stratified by broad_cell_type
+# ── NEW: combine for stratification
+stratify_labels = [
+    f"{ct}_{age}" for ct, age in zip(cell_types, age_numeric)
+]
+
 train_cells, test_cells = train_test_split(
     cells,
     test_size=0.30,
     random_state=42,
-    stratify=cell_types,
+    stratify=stratify_labels,   # now splits by (cell type, age)
 )
 
 # 3) Subset the MuData object

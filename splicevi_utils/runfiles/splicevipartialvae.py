@@ -345,29 +345,40 @@ print(f"Silhouette score ({umap_color_key}): {sil:.4f}")
 
 # ————————————————————————————————————————————————————————
 from scipy.stats import spearmanr
-# Correlation between decoder-predicted PSI and observed PSI (excluding zeros)
-print("Computing PSI prediction vs observed correlation (excluding zeros)…")
+# Correlation between decoder-predicted PSI and observed PSI (from psi_mask)
+print("Computing PSI prediction vs observed correlation (psi_mask)…")
+
 # 1) pull out decoded splicing probs as a numpy array
 decoded = model.get_normalized_splicing(adata=ad, return_numpy=True)
+
 # 2) pull out observed PSI from the AnnData layer
 jr = ad.layers["junc_ratio"]
 obs = jr.toarray() if sparse.issparse(jr) else jr
+
 # 3) flatten both
 flat_decoded = decoded.ravel()
 flat_obs = obs.ravel()
-# 4) filter for non-zero observed PSI
-mask = flat_obs != 0
+
+# 4) get mask from psi_mask layer
+mask_mat = ad.layers["psi_mask"]
+mask = mask_mat.toarray().ravel().astype(bool) if sparse.issparse(mask_mat) else mask_mat.ravel().astype(bool)
+
+# 5) filter using psi_mask
 filtered_obs = flat_obs[mask]
 filtered_decoded = flat_decoded[mask]
-# 5) compute Pearson and Spearman
+
+# 6) compute Pearson and Spearman
 pearson_corr = np.corrcoef(filtered_obs, filtered_decoded)[0, 1]
 spearman_corr, _ = spearmanr(filtered_obs, filtered_decoded)
+
 print(f"Predicted vs observed PSI correlations — Pearson: {pearson_corr:.4f}, Spearman: {spearman_corr:.4f}")
-# log to W&B
+
+# 7) log to W&B
 wandb.log({
     "psi_pred_obs_pearson_corr": pearson_corr,
     "psi_pred_obs_spearman_corr": spearman_corr,
 })
+
 
 # 6) scatterplot
 fig, ax = plt.subplots(figsize=(6,6))

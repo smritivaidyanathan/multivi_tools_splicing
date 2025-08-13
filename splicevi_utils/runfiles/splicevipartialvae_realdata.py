@@ -55,6 +55,10 @@ parser.add_argument(
     help=f"Test AnnData (.h5ad) input path (default: {DEFAULT_ANN_DATA})"
 )
 parser.add_argument(
+    "--masked_test_adata_path", type=str, default=DEFAULT_ANN_DATA,
+    help=f"Test AnnData (.h5ad) input path (default: {DEFAULT_ANN_DATA})"
+)
+parser.add_argument(
     "--model_dir", type=str, default=DEFAULT_MODEL_DIR,
     help=f"Directory to save trained model (default: {DEFAULT_MODEL_DIR})"
 )
@@ -286,8 +290,7 @@ def evaluate_split(name: str, adata, mask_coords=None):
     from sklearn.linear_model import RidgeCV
     from sklearn.preprocessing import StandardScaler
 
-    # pull age vector (replace 'age_numeric' with 'age' if that's your obs field)
-    ages = adata.obs['age'].astype(float).values  
+    ages = adata.obs['age_numeric'].astype(float).values  
 
     # standardize latent factors
     X_latent = StandardScaler().fit_transform(Z)
@@ -318,6 +321,16 @@ print("\nLoading TEST MuData for evaluation and imputation…")
 mdata = mu.read_h5mu(args.test_adata_path)
 ad_test = mdata["splicing"]
 
+print("Setting up SpliceVI PartialVAE…")
+scvi.model.SPLICEVI.setup_anndata(
+    ad_test,
+    junc_ratio_layer=x_layer,
+    junc_counts_layer=junction_counts_layer,
+    cluster_counts_layer=cluster_counts_layer,
+    psi_mask_layer=mask_layer,
+    batch_key=None  
+)
+
 # real-test evaluation
 evaluate_split("test", ad_test)
 
@@ -327,43 +340,63 @@ evaluate_split("test", ad_test)
 del ad_test, mdata
 torch.cuda.empty_cache()
 
-print("\n=== Masked‐ATSE imputation on TEST ===")
+print(f"\n=== Masked‐ATSE imputation on TEST using {args.masked_test_adata_path} ===")
 MASK_FRACTION = 0.2  # fraction of ATSEs to mask
-mdata = mu.read_h5mu(args.mask_test_adata_path)
+mdata = mu.read_h5mu(args.masked_test_adata_path)
 ad_masked = mdata["splicing"]
 
-# 6) run imputation and evaluate on masked-out entries using the masked‐original layer
+print(f"Setting up SpliceVI PartialVAE… ")
+scvi.model.SPLICEVI.setup_anndata(
+    ad_masked,
+    junc_ratio_layer=x_layer,
+    junc_counts_layer=junction_counts_layer,
+    cluster_counts_layer=cluster_counts_layer,
+    psi_mask_layer=mask_layer,
+    batch_key=None  
+)
+
+from scipy import sparse
+
+# 6) run imputation and evaluate on masked-out entries using sparse indexing
 print("Step 6: running imputation and computing correlations")
 model.module.eval()
 with torch.no_grad():
     decoded = model.get_normalized_splicing(adata=ad_masked, return_numpy=True)
-flat_dec = decoded.ravel()
 
-# pull masked-original values
+# ensure CSR for fast row/col lookups
 masked_orig = ad_masked.layers["junc_ratio_masked_original"]
-orig_arr = masked_orig.toarray() if sparse.issparse(masked_orig) else masked_orig
-flat_orig = orig_arr.ravel()
+if not sparse.isspmatrix_csr(masked_orig):
+    masked_orig = sparse.csr_matrix(masked_orig)
 
-# only keep the entries that were artificially masked (non-zero in the masked_original layer)
-mask_idx = flat_orig != 0
-orig_vals = flat_orig[mask_idx]
-pred_vals = flat_dec[mask_idx]
+bin_mask = ad_masked.layers["junc_ratio_masked_bin_mask"]
+if not sparse.isspmatrix_csr(bin_mask):
+    bin_mask = sparse.csr_matrix(bin_mask)
 
-# compute correlations
-pearson_m = np.corrcoef(orig_vals, pred_vals)[0, 1]
-spearman_m = spearmanr(orig_vals, pred_vals)[0]
-print(f"[impute-test] masked‐ATSE PSI corr — Pearson: {pearson_m:.4f}, Spearman: {spearman_m:.4f}")
+# get masked locations (row, col indices)
+rows, cols = bin_mask.nonzero()
 
-wandb.log({
-    "impute-test/psi_pearson_corr_masked_atse": pearson_m,
-    "impute-test/psi_spearman_corr_masked_atse": spearman_m,
-})
+# ground-truth original PSI values (may be zero)
+orig_vals = masked_orig[rows, cols].A1  # .A1 = flatten to 1D
 
-# cleanup TEST data
-print("Cleaning up test data from memory…")
-del ad_test, ad_masked, mdata
-torch.cuda.empty_cache()
+# model predictions (dense output)
+pred_vals = decoded[rows, cols]
 
+# safety check
+if orig_vals.size == 0:
+    print("[impute-test] No masked entries found in bin mask; skipping correlation.")
+else:
+    import numpy as np
+    from scipy.stats import spearmanr
+
+    pearson_m  = np.corrcoef(orig_vals, pred_vals)[0, 1]
+    spearman_m = spearmanr(orig_vals, pred_vals, nan_policy="omit")[0]
+
+    print(f"[impute-test] masked‐ATSE PSI corr — Pearson: {pearson_m:.4f}, Spearman: {spearman_m:.4f}")
+    wandb.log({
+        "impute-test/psi_pearson_corr_masked_atse": pearson_m,
+        "impute-test/psi_spearman_corr_masked_atse": spearman_m,
+        "impute-test/n_masked_entries": int(orig_vals.size),
+    })
 
 # ------------------------------
 # 12. Finish
