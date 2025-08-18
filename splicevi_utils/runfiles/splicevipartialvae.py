@@ -200,19 +200,8 @@ scvi.model.SPLICEVI.setup_anndata(
 model_kwargs = {name: getattr(args, name) for name in init_defaults if getattr(args, name) is not None}
 print("Initializing model with:", model_kwargs)
 model = scvi.model.SPLICEVI(ad, **model_kwargs)
-# model.view_anndata_setup()
-
-# # Initialize model
-# model = scvi.model.SPLICEVI(
-#     adata=ad,
-#     code_dim=CODE_DIM,
-#     h_hidden_dim=64,
-#     encoder_hidden_dim=128,
-#     latent_dim=10,
-#     dropout_rate=0.01,
-#     learn_concentration=False,
-#     splice_likelihood="binomial"
-# )
+print(model._model_summary_string)
+model.view_anndata_setup()
 
 # ── count & log total parameters ─────────────────────────────────────────────
 total_params = sum(p.numel() for p in model.module.parameters())
@@ -229,36 +218,11 @@ wandb.watch(
 
 model.view_anndata_setup()
 
-# # Add PCA embedding for initialization
-# # Get feature embedding before PCA init
-# pca_tensor = torch.tensor(pca_components, dtype=model.module.encoder.feature_embedding.dtype)
-# embedding_tensor = model.module.encoder.feature_embedding.detach()
-
-# diff = torch.norm(embedding_tensor - pca_tensor).item()
-# print(f"L2 norm between PCA loadings and random model embedding: {diff:.6f}")
-
-# model.module.initialize_feature_embedding_from_pca(pca_components)
-# pca_tensor = torch.tensor(pca_components, dtype=model.module.encoder.feature_embedding.dtype)
-# embedding_tensor = model.module.encoder.feature_embedding.detach()
-# diff = torch.norm(embedding_tensor - pca_tensor).item()
-# print(f"L2 norm between initialized PCA and model embedding: {diff:.6f}")
-
-
 # ------------------------------
 # 8. Train
 # ------------------------------
 train_kwargs = {name: getattr(args, name) for name in train_defaults if getattr(args, name) is not None}
 print("Training with:", train_kwargs)
-# model.train(
-#     max_epochs=100,
-#     lr=1e-2,
-#     batch_size=512,
-#     early_stopping=True,
-#     n_epochs_kl_warmup=10,
-#     weight_decay=0,
-#     save_best=False,
-#     check_val_every_n_epoch=5,
-# )
 model.train(logger=wandb_logger, check_val_every_n_epoch=5, **train_kwargs)
 model.save(args.model_dir, overwrite=True)
 wandb.log({"model_saved_to": args.model_dir})

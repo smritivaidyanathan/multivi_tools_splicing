@@ -167,6 +167,8 @@ model_kwargs = {
 }
 print("Initializing model with parameters:", model_kwargs)
 model = scvi.model.SPLICEVI(ad, **model_kwargs)
+print(model._model_summary_string)
+model.view_anndata_setup()
 
 # count & log total parameters
 total_params = sum(p.numel() for p in model.module.parameters())

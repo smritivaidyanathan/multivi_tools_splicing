@@ -9,13 +9,13 @@ DROPOUT_RATE=0.01
 SPLICE_LIKELIHOOD="dirichlet_multinomial"
 MAX_EPOCHS=750
 LR=1e-5
-BATCH_SIZE=256
+BATCH_SIZE=64
 N_EPOCHS_KL_WARMUP=50
 SIMULATED=true
 
 
 # Sweep over multiple code dimensions
-CODE_DIMS=(64)
+CODE_DIMS=(32)
 NUM_WEIGHT_VECTORS_LIST=(1 3 5)
 
 # Conda & script location
@@ -82,19 +82,19 @@ echo "→ Job template written. Submitting sweep jobs..."
 
 # 2) Define sweep configurations
 ENCODER_TYPES=(
-  "PartialEncoderEDDI"
-  "PartialEncoderEDDI"
-  "PartialEncoderEDDIATSE"
-  "PartialEncoderEDDIATSE"
-  "PartialEncoderWeightedSumEDDIMultiWeight"
+  # "PartialEncoderEDDI"
+  # "PartialEncoderEDDI"
+  # "PartialEncoderEDDIATSE"
+  # "PartialEncoderEDDIATSE"
+  # "PartialEncoderWeightedSumEDDIMultiWeight"
   "PartialEncoderWeightedSumEDDIMultiWeightATSE"
 )
 POOL_MODES=(
-  "sum"
-  "mean"
-  "sum"
-  "mean"
-  ""
+  # "sum"
+  # "mean"
+  # "sum"
+  # "mean"
+  # ""
   ""
 )
 
