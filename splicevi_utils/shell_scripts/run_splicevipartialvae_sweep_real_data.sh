@@ -11,15 +11,17 @@ MASKED_TEST_ADATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-
 
 DROPOUT_RATE=0.01
 SPLICE_LIKELIHOOD="dirichlet_multinomial"
-MAX_EPOCHS=750
+MAX_EPOCHS=500
 LR=1e-5
 BATCH_SIZE=256
 N_EPOCHS_KL_WARMUP=50
 SIMULATED=true
+LATENT_DIM=20
+FORWARD_STYLE="scatter"
 
 # Sweep over multiple code dimensions
-CODE_DIMS=(64)
-NUM_WEIGHT_VECTORS_LIST=(1 3 5)
+CODE_DIMS=(32)
+NUM_WEIGHT_VECTORS_LIST=(5)
 
 
 
@@ -54,10 +56,11 @@ echo "   TEST_ADATA_PATH= $TEST_ADATA_PATH"
 echo "   MASKED_TEST_ADATA_PATH= $MASKED_TEST_ADATA_PATH"
 echo "   ENCODER_TYPE= $ENCODER_TYPE"
 echo "   POOL_MODE= $POOL_MODE"
-echo "   JUNCTION_INCLUSION= $JUNCTION_INCLUSION"
 echo "   CODE_DIM= $CODE_DIM"
+echo "   LATENT_DIM= $LATENT_DIM"
 echo "   IMPUTEDENCODER= $IMPUTEDENCODER"
 echo "   NUM_WEIGHT_VECTORS= $NUM_WEIGHT_VECTORS"
+echo "   FORWARD_STYLE= $FORWARD_STYLE"
 
 
 # Activate Conda environment
@@ -79,9 +82,10 @@ python "$SCRIPT_PATH" \
   ${N_EPOCHS_KL_WARMUP:+--n_epochs_kl_warmup "$N_EPOCHS_KL_WARMUP"} \
   ${SIMULATED:+--simulated} \
   ${CODE_DIM:+--code_dim "$CODE_DIM"} \
+  ${LATENT_DIM:+--latent_dim "$LATENT_DIM"} \
   ${ENCODER_TYPE:+--encoder_type "$ENCODER_TYPE"} \
   ${POOL_MODE:+--pool_mode "$POOL_MODE"} \
-  ${JUNCTION_INCLUSION:+--junction_inclusion "$JUNCTION_INCLUSION"} \
+  ${FORWARD_STYLE:+--forward_style "$FORWARD_STYLE"} \
   ${IMPUTEDENCODER:+--imputedencoder} \
   ${NUM_WEIGHT_VECTORS:+--num_weight_vectors "$NUM_WEIGHT_VECTORS"}
 
@@ -95,35 +99,14 @@ echo "→ Job template written. Submitting sweep jobs..."
 ENCODER_TYPES=(
   "PartialEncoderEDDI"
   # "PartialEncoderEDDI"
-  # "PartialEncoderEDDIATSE"
-  # "PartialEncoderEDDIATSE"
-  # "PartialEncoderEDDIATSEL"
-  # "PartialEncoderEDDIATSEL"
-  # "PartialEncoderWeightedSumEDDI"
   # "PartialEncoderWeightedSumEDDIMultiWeight"
   # "PartialEncoderWeightedSumEDDIMultiWeightATSE"
 )
 POOL_MODES=(
   "sum"
   # "mean"
-  # "sum"
-  # "mean"
-  # "sum"
-  # "mean"
   # ""
   # ""
-  # ""
-)
-JUNCTION_INCLUSIONS=(
-  ""
-#   ""
-#   ""
-#   ""
-#   ""
-#   ""
-  # "observed_junctions"
-  # # "observed_junctions"
-  # "observed_junctions"
 )
 
 # 3) Loop and submit
@@ -131,7 +114,7 @@ for CODE_DIM in "${CODE_DIMS[@]}"; do
   for i in "${!ENCODER_TYPES[@]}"; do
     ENCODER_TYPE="${ENCODER_TYPES[$i]}"
     POOL_MODE="${POOL_MODES[$i]}"
-    JUNCTION_INCLUSION="${JUNCTION_INCLUSIONS[$i]}"
+    
 
     # heads are only relevant for MultiWeight encoders
     if [[ "$ENCODER_TYPE" == "PartialEncoderWeightedSumEDDIMultiWeight" || \
@@ -148,9 +131,8 @@ for CODE_DIM in "${CODE_DIMS[@]}"; do
         IMPUTEDENCODER=
       fi
 
-      JOB_NAME="sweep_cd${CODE_DIM}_${i}_${ENCODER_TYPE}"
+      JOB_NAME="sweep_REAL_cd${CODE_DIM}_ld=${LATENT_DIM}_lr=${LR}_${i}_${FORWARD_STYLE}_${ENCODER_TYPE}"
       [ -n "$POOL_MODE" ]            && JOB_NAME+="_pool=${POOL_MODE}"
-      [ -n "$JUNCTION_INCLUSION" ]   && JOB_NAME+="_jinc=${JUNCTION_INCLUSION}"
       [ -n "$NUM_WEIGHT_VECTORS" ]   && JOB_NAME+="_W=${NUM_WEIGHT_VECTORS}"
 
       JOB_DIR="$BATCH_RUN_DIR/$JOB_NAME"
@@ -186,9 +168,10 @@ BATCH_SIZE="$BATCH_SIZE",\
 N_EPOCHS_KL_WARMUP="$N_EPOCHS_KL_WARMUP",\
 SIMULATED="$SIMULATED",\
 CODE_DIM="$CODE_DIM",\
+LATENT_DIM="$LATENT_DIM",\
 ENCODER_TYPE="$ENCODER_TYPE",\
+FORWARD_STYLE="$FORWARD_STYLE",\
 POOL_MODE="$POOL_MODE",\
-JUNCTION_INCLUSION="$JUNCTION_INCLUSION",\
 IMPUTEDENCODER="$IMPUTEDENCODER",\
 NUM_WEIGHT_VECTORS="$NUM_WEIGHT_VECTORS" \
         "$BATCH_RUN_DIR/job_template.sh"
