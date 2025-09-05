@@ -14,13 +14,13 @@ from scipy import sparse
 INPUT_PATH = (
     "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/"
     "MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/"
-    "test_30_70_ge_splice_combined_20250730_164104.h5mu"
+    "test_30_70_20250730_subsetMAX4JUNC.h5mu"
 )
 MASK_FRACTION = 0.2  # fraction of observed ATSEs to mask per cell
 OUTPUT_PATH = (
     f"/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/"
     "MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/"
-    f"MASKED_{MASK_FRACTION}_test_30_70_ge_splice_combined_20250730_164104.h5mu"
+    f"MASKED_{MASK_FRACTION}_test_30_70_20250730_subsetMAX4JUNC.h5mu.h5mu"
 )
 SEED = 0
 

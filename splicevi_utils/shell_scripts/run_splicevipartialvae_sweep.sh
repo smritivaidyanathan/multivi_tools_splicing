@@ -89,13 +89,13 @@ echo "→ Job template written. Submitting sweep jobs..."
 # 2) Define sweep configurations
 ENCODER_TYPES=(
   "PartialEncoderWeightedSumEDDIMultiWeight"
-  # "PartialEncoderEDDI"
+  "PartialEncoderEDDI"
   "PartialEncoderEDDIATSE"
   "PartialEncoderWeightedSumEDDIMultiWeightATSE"
 )
 POOL_MODES=(
   ""
-  # "sum"
+  "mean"
   "sum"
   ""
 )

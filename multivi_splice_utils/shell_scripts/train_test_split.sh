@@ -2,8 +2,8 @@
 #SBATCH --job-name=Mudata_Test_Train_Split
 #SBATCH --output=cpu_job_output.txt
 #SBATCH --error=cpu_job_error.txt
-#SBATCH --partition=cpu, dev, bigmem
-#SBATCH --mem=300G
+#SBATCH --partition=bigmem
+#SBATCH --mem=500G
 #SBATCH --cpus-per-task=1   # Adjust based on how many threads your script uses
 #SBATCH --time=8:00:00      # Adjust as needed
 

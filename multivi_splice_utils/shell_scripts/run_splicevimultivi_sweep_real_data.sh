@@ -4,9 +4,9 @@
 
 ### ─── USER CONFIG ─────────────────────────────────────────────────────────
 # Default data & hyperparameters (override in-script or via sbatch --export)
-TRAIN_ADATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/train_70_30_20250730_subsetMAX4JUNC.h5mu"
-TEST_ADATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/test_30_70_20250730_subsetMAX4JUNC.h5mu"
-MASKED_TEST_ADATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/MASKED_0.2_test_30_70_20250730_subsetMAX4JUNC.h5mu"
+TRAIN_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/train_70_30_20250730_subsetMAX4JUNC.h5mu"
+TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/test_30_70_20250730_subsetMAX4JUNC.h5mu"
+MASKED_TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/MASKED_0.2_test_30_70_20250730_subsetMAX4JUNC.h5mu"
 
 
 DROPOUT_RATE=0.01
@@ -53,9 +53,9 @@ cat > "$BATCH_RUN_DIR/job_template.sh" << 'EOF'
 
 # Debug prints
 echo "→ Job: $JOB_NAME"
-echo "   TRAIN_ADATA_PATH= $TRAIN_ADATA_PATH"
-echo "   TEST_ADATA_PATH= $TEST_ADATA_PATH"
-echo "   MASKED_TEST_ADATA_PATH= $MASKED_TEST_ADATA_PATH"
+echo "   TRAIN_MDATA_PATH= $TRAIN_MDATA_PATH"
+echo "   TEST_MDATA_PATH= $TEST_MDATA_PATH"
+echo "   MASKED_TEST_MDATA_PATH= $MASKED_TEST_MDATA_PATH"
 echo "   ENCODER_TYPE= $ENCODER_TYPE"
 echo "   POOL_MODE= $POOL_MODE"
 echo "   CODE_DIM= $CODE_DIM"
@@ -72,9 +72,9 @@ conda activate "$ENV_NAME"
 
 # Run the Python script with CLI flags built from env vars
 python "$SCRIPT_PATH" \
-  ${TRAIN_ADATA_PATH:+--train_adata_path "$TRAIN_ADATA_PATH"} \
-  ${TEST_ADATA_PATH:+--test_adata_path "$TEST_ADATA_PATH"} \
-  ${MASKED_TEST_ADATA_PATH:+--masked_test_adata_path "$MASKED_TEST_ADATA_PATH"} \
+  ${TRAIN_MDATA_PATH:+--train_mdata_path "$TRAIN_MDATA_PATH"} \
+  ${TEST_MDATA_PATH:+--test_mdata_path "$TEST_MDATA_PATH"} \
+  ${MASKED_TEST_MDATA_PATH:+--masked_test_mdata_path "$MASKED_TEST_MDATA_PATH"} \
   ${MODEL_DIR:+--model_dir "$MODEL_DIR"} \
   ${FIG_DIR:+--fig_dir "$FIG_DIR"} \
   ${DROPOUT_RATE:+--dropout_rate "$DROPOUT_RATE"} \
@@ -163,9 +163,9 @@ JOB_DIR="$JOB_DIR",\
 CONDA_BASE="$CONDA_BASE",\
 ENV_NAME="$ENV_NAME",\
 SCRIPT_PATH="$SCRIPT_PATH",\
-TRAIN_ADATA_PATH="$TRAIN_ADATA_PATH",\
-TEST_ADATA_PATH="$TEST_ADATA_PATH",\
-MASKED_TEST_ADATA_PATH="$MASKED_TEST_ADATA_PATH",\
+TRAIN_MDATA_PATH="$TRAIN_MDATA_PATH",\
+TEST_MDATA_PATH="$TEST_MDATA_PATH",\
+MASKED_TEST_MDATA_PATH="$MASKED_TEST_MDATA_PATH",\
 MODEL_DIR="$MODEL_DIR",\
 FIG_DIR="$FIG_DIR",\
 DROPOUT_RATE="$DROPOUT_RATE",\

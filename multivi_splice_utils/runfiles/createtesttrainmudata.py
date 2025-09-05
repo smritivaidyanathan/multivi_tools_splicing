@@ -15,11 +15,15 @@
 ROOT_PATH          = "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/"
 ATSE_DATA_PATH     = ROOT_PATH + "aligned_splicing_data_20250730_164104.h5ad"
 GE_DATA_PATH       = ROOT_PATH + "aligned_gene_expression_data_20250730_164104.h5ad"
-OUTPUT_MUDATA_PATH = ROOT_PATH + "combined_ge_splice_20250730_164104.h5mu"
+OUTPUT_MUDATA_PATH = ROOT_PATH + "subsetMAX4JUNC_combined_ge_splice_20250730_164104.h5mu"
 
 print("ATSE data path:", ATSE_DATA_PATH)
 print("GE data path:  ", GE_DATA_PATH)
 print("Output MuData path:", OUTPUT_MUDATA_PATH)
+
+MAX_JUNCTIONS_PER_ATSE = 4
+
+print(f"MAX_JUNCTIONS_PER_ATSE: {MAX_JUNCTIONS_PER_ATSE}")
 
 # %% [markdown]
 # ## 1. Imports
@@ -66,6 +70,36 @@ ge.var["modality"] = "Gene_Expression"
 
 atse.var["ID"]       = atse.var["junction_id"]
 atse.var["modality"] = "Splicing"
+
+# 2b. Subset ATSE to junctions whose ATSE (event_id) has ≤ MAX_JUNCTIONS_PER_ATSE junctions
+print(atse)
+# %%
+import pandas as pd
+
+evt = atse.var["event_id"]                 # one event_id per junction (var)
+n_junc_before  = atse.n_vars
+n_event_before = evt.nunique()
+
+# Count how many junctions belong to each event_id
+evt_counts = evt.value_counts()            # index: event_id, value: num junctions in that ATSE
+per_junc_evt_size = evt.map(evt_counts)    # align count to each junction
+
+# Keep junctions only if their ATSE has ≤ threshold junctions
+keep_junctions = (per_junc_evt_size <= MAX_JUNCTIONS_PER_ATSE).to_numpy()
+
+print(f"[ATSE] Junctions before: {n_junc_before}")
+print(f"[ATSE] Junctions after ≤{MAX_JUNCTIONS_PER_ATSE} per ATSE: {int(keep_junctions.sum())}")
+print(f"[ATSE] ATSEs (unique event_id) before: {n_event_before}")
+
+# Apply subset
+atse = atse[:, keep_junctions].copy()
+
+# Recompute ATSE count after subsetting
+n_event_after = atse.var["event_id"].nunique()
+print(f"[ATSE] ATSEs (unique event_id) after:  {n_event_after}")
+
+
+print(atse)
 
 # %% [markdown]
 # ## 5. Compute Splicing `junc_ratio` and `psi_mask`
@@ -144,8 +178,8 @@ mdata_test  = mdata[test_cells,  :].copy()
 # ## 8. Write Out Results
 
 # %%
-mdata_train.write(ROOT_PATH + "train_70_30_20250730.h5mu")
-mdata_test.write( ROOT_PATH + "test_30_70_20250730.h5mu")
+mdata_train.write(ROOT_PATH + "train_70_30_20250730_subsetMAX4JUNC.h5mu")
+mdata_test.write( ROOT_PATH + "test_30_70_20250730_subsetMAX4JUNC.h5mu")
 mdata.write(OUTPUT_MUDATA_PATH)
 
 print(
