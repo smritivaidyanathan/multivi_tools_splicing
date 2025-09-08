@@ -24,7 +24,7 @@ DEFAULT_FIG_DIR = "/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing
 # ------------------------------
 # 1. Grab train() defaults
 # ------------------------------
-train_sig = inspect.signature(scvi.model.SPLICEVI.train)
+train_sig = inspect.signature(scvi.model.MULTIVISPLICE.train)
 train_defaults = {
     name: param.default
     for name, param in train_sig.parameters.items()
@@ -34,7 +34,7 @@ train_defaults = {
 # ------------------------------
 # 2. Grab __init__ defaults for model
 # ------------------------------
-init_sig = inspect.signature(scvi.model.SPLICEVI.__init__)
+init_sig = inspect.signature(scvi.model.MULTIVISPLICE.__init__)
 init_defaults = {
     name: param.default
     for name, param in init_sig.parameters.items()
@@ -44,7 +44,7 @@ init_defaults = {
 # ------------------------------
 # 3. Build argparse
 # ------------------------------
-parser = argparse.ArgumentParser("SpliceVI-PartialVAE")
+parser = argparse.ArgumentParser("SpliceVI-MultiVI")
 # paths
 parser.add_argument(
     "--train_mdata_path", type=str, default=DEFAULT_ANN_DATA,
@@ -66,6 +66,10 @@ parser.add_argument(
     "--fig_dir", type=str, default=DEFAULT_FIG_DIR,
     help=f"Directory to save UMAP figures (default: {DEFAULT_FIG_DIR})"
 )
+
+parser.add_argument("--n_latent", type=int, default=None,
+                    help="Latent dim (int). If omitted, model default is used.")
+
 
 # model init params
 for name, default in init_defaults.items():
@@ -201,21 +205,25 @@ latent_spaces = {
 for name, Z in latent_spaces.items():
     key_latent = f"X_latent_{name}"
     key_nn     = f"neighbors_{name}"
-    key_umap   = f"umap_{name}"
+    key_umap   = f"X_umap_{name}"   # store in .obsm under this name
 
+    # write latent, build neighbors with a custom key
     mdata["rna"].obsm[key_latent] = Z
     sc.pp.neighbors(mdata["rna"], use_rep=key_latent, key_added=key_nn)
-    sc.tl.umap(mdata["rna"], min_dist=0.1, neighbors_key=key_nn, key_added=key_umap)
+
+    # run UMAP; no key_added here. Use copy=True and pull out the embedding.
+    _tmp = sc.tl.umap(mdata["rna"], min_dist=0.1, neighbors_key=key_nn, copy=True)
+    mdata["rna"].obsm[key_umap] = _tmp.obsm["X_umap"]
 
     print(f"Generating UMAP for latent space: {name}")
 
-    # --- Formatting like your helper ---
-    plt.figure(figsize=(8, 6))  # a bit wider to fit legend, but plot area remains square
-    sc.pl.umap(
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(13, 6))
+    sc.pl.embedding(
         mdata["rna"],
-        basis=key_umap,
+        basis=key_umap,                 # <- custom basis lives in .obsm[key_umap]
         color=umap_color_key,
-        legend_loc='right margin',
+        legend_loc="right margin",
         frameon=True,
         legend_fontsize=10,
         show=False,
@@ -223,11 +231,31 @@ for name, Z in latent_spaces.items():
     plt.title(f"UMAP by {umap_color_key} – {name}")
     plt.tight_layout(rect=[0, 0, 1, 0.95])
 
-    # Save + log
     out_path = f"{args.fig_dir}/umap_{umap_color_key}_{name}.png"
-    plt.savefig(out_path, dpi=300, bbox_inches='tight')
-    wandb.log({f"umap_{name}": wandb.Image(out_path)})
+    plt.savefig(out_path, dpi=300, bbox_inches="tight")
+    wandb.log({f"umap_{umap_color_key}_{name}": wandb.Image(out_path)})
     plt.close()
+
+
+    plt.figure(figsize=(13, 6))
+    sc.pl.embedding(
+        mdata["rna"],
+        basis=key_umap,                 # <- custom basis lives in .obsm[key_umap]
+        color=cell_type_classification_key,
+        legend_loc="right margin",
+        frameon=True,
+        legend_fontsize=10,
+        show=False,
+    )
+    plt.title(f"UMAP by {cell_type_classification_key} – {name}")
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+
+    out_path = f"{args.fig_dir}/umap_{cell_type_classification_key}_{name}.png"
+    plt.savefig(out_path, dpi=300, bbox_inches="tight")
+    wandb.log({f"umap_{cell_type_classification_key}_{name}": wandb.Image(out_path)})
+    plt.close()
+
+
 
 print("All UMAP embeddings complete.")
 
@@ -277,37 +305,37 @@ def evaluate_split(name: str, mdata, mask_coords=None, Z_type = "joint"):
         f"real-{name}-{Z_type}/recall": rec,
         f"real-{name}-{Z_type}/f1_score": f1,
     })
+    if Z_type == "joint":
+        # 3) observed PSI correlation (Pearson & Spearman)
+        decoded = model.get_normalized_splicing(adata=mdata, return_numpy=True)
+        jr = mdata["splicing"].layers["junc_ratio"]
+        obs = jr.toarray() if sparse.issparse(jr) else jr
+        flat_obs = obs.ravel()
+        flat_dec = decoded.ravel()
+        # get the binary mask matrix
+        mask_mat = mdata["splicing"].layers["psi_mask"]
 
-    # 3) observed PSI correlation (Pearson & Spearman)
-    decoded = model.get_normalized_splicing(adata=mdata, return_numpy=True)
-    jr = mdata["splicing"].layers["junc_ratio"]
-    obs = jr.toarray() if sparse.issparse(jr) else jr
-    flat_obs = obs.ravel()
-    flat_dec = decoded.ravel()
-    # get the binary mask matrix
-    mask_mat = mdata["splicing"].layers["psi_mask"]
+        # turn into 1D boolean index
+        if sparse.issparse(mask_mat):
+            mask_flat = mask_mat.toarray().ravel().astype(bool)
+        else:
+            mask_flat = mask_mat.ravel().astype(bool)
 
-    # turn into 1D boolean index
-    if sparse.issparse(mask_mat):
-        mask_flat = mask_mat.toarray().ravel().astype(bool)
-    else:
-        mask_flat = mask_mat.ravel().astype(bool)
+        # allow for your optional override
+        if mask_coords is not None:
+            mask_flat = mask_coords
 
-    # allow for your optional override
-    if mask_coords is not None:
-        mask_flat = mask_coords
+        # now filter
+        filt_obs = flat_obs[mask_flat]
+        filt_dec = flat_dec[mask_flat]
 
-    # now filter
-    filt_obs = flat_obs[mask_flat]
-    filt_dec = flat_dec[mask_flat]
-
-    pearson = np.corrcoef(filt_obs, filt_dec)[0, 1]
-    spearman = spearmanr(filt_obs, filt_dec)[0]
-    print(f"[{name}-{Z_type}] PSI corr — Pearson: {pearson:.4f}, Spearman: {spearman:.4f}")
-    wandb.log({
-        f"real-{name}-{Z_type}/psi_pearson_corr": pearson,
-        f"real-{name}-{Z_type}/psi_spearman_corr": spearman,
-    })
+        pearson = np.corrcoef(filt_obs, filt_dec)[0, 1]
+        spearman = spearmanr(filt_obs, filt_dec)[0]
+        print(f"[{name}-{Z_type}] PSI corr — Pearson: {pearson:.4f}, Spearman: {spearman:.4f}")
+        wandb.log({
+            f"real-{name}-{Z_type}/psi_pearson_corr": pearson,
+            f"real-{name}-{Z_type}/psi_spearman_corr": spearman,
+        })
 
     # 4) age regression (splicing latent)
     from sklearn.linear_model import RidgeCV
@@ -330,9 +358,9 @@ def evaluate_split(name: str, mdata, mask_coords=None, Z_type = "joint"):
     wandb.log({f"real-{name}-{Z_type}/age_r2": r2_age})
 
 # run evaluation on training data
-evaluate_split("train", mdata, "joint")
-evaluate_split("train", mdata, "expression")
-evaluate_split("train", mdata, "splicing")
+evaluate_split("train", mdata, Z_type="joint")
+evaluate_split("train", mdata, Z_type="expression")
+evaluate_split("train", mdata, Z_type="splicing")
 
 # free training data from memory
 print("Cleaning up training data from memory…")
@@ -359,9 +387,9 @@ scvi.model.MULTIVISPLICE.setup_mudata(
 )
 
 # real-test evaluation
-evaluate_split("test", mdata, "joint")
-evaluate_split("test", mdata, "expression")
-evaluate_split("test", mdata, "splicing")
+evaluate_split("test", mdata, Z_type="joint")
+evaluate_split("test", mdata, Z_type="expression")
+evaluate_split("test", mdata, Z_type="splicing")
 
 # ------------------------------
 # 11. TEST split + masked‐ATSE imputation
@@ -393,7 +421,7 @@ from scipy import sparse
 print("Step 6: running imputation and computing correlations")
 model.module.eval()
 with torch.no_grad():
-    decoded = model.get_normalized_splicing(adata=ad_masked, return_numpy=True)
+    decoded = model.get_normalized_splicing(adata=mdata, return_numpy=True)
 
 # ensure CSR for fast row/col lookups
 masked_orig = ad_masked.layers["junc_ratio_masked_original"]
