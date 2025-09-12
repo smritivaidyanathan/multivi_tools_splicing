@@ -15,8 +15,8 @@ SPLICING_LOSS_TYPE="dirichlet_multinomial"   # options: binomial | beta_binomial
 MAX_EPOCHS=500
 LR=1e-5
 BATCH_SIZE=256
-N_EPOCHS_KL_WARMUP=100
-N_LATENT=25                                   # maps to --n_latent
+N_EPOCHS_KL_WARMUP=50
+N_LATENT=20                                   # maps to --n_latent
 FORWARD_STYLE="scatter"                        # options: per-cell | batched | scatter
 MAX_NOBS=-1
 
@@ -25,13 +25,13 @@ CODE_DIMS=(32)
 NUM_WEIGHT_VECTORS_LIST=(5)
 MODALITY_WEIGHTS="concatenate"                       # options: equal | cell | universal | concatenate
 SPLICING_ARCHITECTURE="partial"                # options: vanilla | partial
-EXPRESSION_ARCHITECTURE="linear"              # options: vanilla | linear
+EXPRESSION_ARCHITECTURE="vanilla"              # options: vanilla | linear
 ENCODER_HIDDEN_DIM=128
 H_HIDDEN_DIM=64
 ATSE_EMBEDDING_DIMENSION=16
 TEMPERATURE_VALUE=-1.0
 TEMPERATURE_FIXED=true
-# POOL_MODE="sum"                                # options: mean | sum (you already sweep this paired with ENCODER_TYPE)
+POOL_MODE="sum"                                # options: mean | sum (you already sweep this paired with ENCODER_TYPE)
 
 # TRAIN knobs (non-sweep) 
 WEIGHT_DECAY=1e-3
@@ -49,7 +49,7 @@ GRADIENT_CLIPPING_MAX_NORM=5.0
 # Conda & script location
 CONDA_BASE="/gpfs/commons/home/svaidyanathan/miniconda3"
 ENV_NAME="scvi-env"
-SCRIPT_PATH="/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/multivi_splice_utils/runfiles/splicevimultivi_realdata.py"
+SCRIPT_PATH="/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/multivi_splice_utils/runfiles/splicevimultivi_realdata-copy.py"
 
 # Batch output directory
 BASE_RUN_DIR="/gpfs/commons/home/svaidyanathan/splice_vi_partial_vae_sweep"
@@ -65,10 +65,10 @@ cat > "$BATCH_RUN_DIR/job_template.sh" << 'EOF'
 #SBATCH --job-name=${JOB_NAME}
 #SBATCH --output=${JOB_DIR}/slurm_%j.out
 #SBATCH --error=${JOB_DIR}/slurm_%j.err
-#SBATCH --mem=300G
+#SBATCH --mem=75G
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --time=40:00:00
+#SBATCH --time=01:00:00
 
 # Debug prints
 echo "   MODALITY_WEIGHTS= $MODALITY_WEIGHTS"
@@ -147,20 +147,20 @@ echo "→ Job template written. Submitting sweep jobs..."
 
 # 2) Define sweep configurations
 ENCODER_TYPES=(
-  # "PartialEncoderWeightedSumEDDIMultiWeight"
-  # "PartialEncoderEDDI"
-  # "PartialEncoderEDDIATSE"
+  "PartialEncoderWeightedSumEDDIMultiWeight"
   "PartialEncoderEDDI"
-  # "PartialEncoderEDDIATSE"
-  # "PartialEncoderWeightedSumEDDIMultiWeightATSE"
+  "PartialEncoderEDDIATSE"
+  "PartialEncoderEDDI"
+  "PartialEncoderEDDIATSE"
+  "PartialEncoderWeightedSumEDDIMultiWeightATSE"
 )
 POOL_MODES=(
-  # ""
-  # "sum"
-  # "sum"
+  ""
+  "sum"
+  "sum"
   "mean"
-  # "mean"
-  # ""
+  "mean"
+  ""
 )
 
 # 3) Loop and submit
@@ -199,7 +199,7 @@ for CODE_DIM in "${CODE_DIMS[@]}"; do
         --job-name="$JOB_NAME" \
         --output="$JOB_DIR/slurm_%j.out" \
         --error="$JOB_DIR/slurm_%j.err" \
-        --mem=300G \
+        --mem=75G \
         --partition=gpu \
         --gres=gpu:1 \
         --time=40:00:00 \

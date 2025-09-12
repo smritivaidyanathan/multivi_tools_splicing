@@ -117,9 +117,9 @@ wandb_logger = WandbLogger(project="MLCB_SUBMISSION", config=full_config)
 # ------------------------------
 # 6. Load Training MuData & Preprocess
 # ------------------------------
-print(f"Loading Training MuData from {args.train_mdata_path}…")
+print(f"Loading Training MuData from {args.test_mdata_path}…")
 import mudata as mu
-mdata = mu.read_h5mu(args.train_mdata_path)
+mdata = mu.read_h5mu(args.test_mdata_path)
 
 # Layer names
 x_layer = "junc_ratio"
@@ -226,7 +226,7 @@ for name, Z in latent_spaces.items():
         mdata["rna"],
         basis=key_umap,                 # <- custom basis lives in .obsm[key_umap]
         color=umap_color_key,
-        legend_loc=None,
+        legend_loc="right margin",
         frameon=True,
         legend_fontsize=10,
         show=False,
@@ -237,26 +237,6 @@ for name, Z in latent_spaces.items():
     out_path = f"{args.fig_dir}/umap_{umap_color_key}_{name}.png"
     plt.savefig(out_path, dpi=300, bbox_inches="tight")
     wandb.log({f"umap_{umap_color_key}_{name}": wandb.Image(out_path)})
-    plt.close()
-
-
-    
-    plt.figure(figsize=(6, 6))
-    sc.pl.embedding(
-        mdata["rna"],
-        basis=key_umap,                 # <- custom basis lives in .obsm[key_umap]
-        color=umap_color_key,
-        legend_loc=None,
-        frameon=True,
-        legend_fontsize=10,
-        show=False,
-    )
-    plt.title(f"UMAP by {umap_color_key} – {name}")
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
-
-    out_path = f"{args.fig_dir}/umap_{umap_color_key}_{name}.png"
-    plt.savefig(out_path, dpi=300, bbox_inches="tight")
-    wandb.log({f"umap_sqr_{umap_color_key}_{name}": wandb.Image(out_path)})
     plt.close()
 
 
