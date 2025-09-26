@@ -4,21 +4,25 @@
 
 ### ─── USER CONFIG ─────────────────────────────────────────────────────────
 # Default data & hyperparameters (override in-script or via sbatch --export)
-TRAIN_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/train_70_30_20250730_subsetMAX4JUNC.h5mu"
-TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/test_30_70_20250730_subsetMAX4JUNC.h5mu"
-MASKED_TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/MASKED_0.2_test_30_70_20250730_subsetMAX4JUNC.h5mu"
+# TRAIN_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/train_70_30_ge_splice_combined_20250730_164104.h5mu"
+# TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/test_30_70_ge_splice_combined_20250730_164104.h5mu"
+# MASKED_TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/MASKED_0.2_test_30_70_ge_splice_combined_20250730_164104.h5mu"
+
+TRAIN_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/HUMAN_SPLICING_FOUNDATION/MODEL_INPUT/072025/train_70_30_ge_splicing_data_20250731_212313.h5mu"
+TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/HUMAN_SPLICING_FOUNDATION/MODEL_INPUT/072025/test_30_70_ge_splicing_data_20250731_212313.h5mu"
+MASKED_TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/HUMAN_SPLICING_FOUNDATION/MODEL_INPUT/072025/MASKED_0.2_test_30_70_ge_splicing_data_20250731_212313.h5mu"
 
 
 DROPOUT_RATE=0.01
 SPLICING_LOSS_TYPE="dirichlet_multinomial"   # options: binomial | beta_binomial | dirichlet_multinomial
 
-MAX_EPOCHS=500
+MAX_EPOCHS=1
 LR=1e-5
 BATCH_SIZE=256
 N_EPOCHS_KL_WARMUP=100
 N_LATENT=25                                   # maps to --n_latent
 FORWARD_STYLE="scatter"                        # options: per-cell | batched | scatter
-MAX_NOBS=-1
+MAX_NOBS=50000
 
 # Sweep over multiple code dimensions
 CODE_DIMS=(32)
@@ -33,7 +37,7 @@ TEMPERATURE_VALUE=-1.0
 TEMPERATURE_FIXED=true
 # POOL_MODE="sum"                                # options: mean | sum (you already sweep this paired with ENCODER_TYPE)
 
-# TRAIN knobs (non-sweep) 
+# TRAIN knobs (non-sweep)
 WEIGHT_DECAY=1e-3
 EARLY_STOPPING_PATIENCE=50
 LR_SCHEDULER_TYPE="plateau"                    # options: plateau | step
@@ -68,7 +72,7 @@ cat > "$BATCH_RUN_DIR/job_template.sh" << 'EOF'
 #SBATCH --mem=300G
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --time=40:00:00
+#SBATCH --time=2:00:00
 
 # Debug prints
 echo "   MODALITY_WEIGHTS= $MODALITY_WEIGHTS"
@@ -202,7 +206,7 @@ for CODE_DIM in "${CODE_DIMS[@]}"; do
         --mem=300G \
         --partition=gpu \
         --gres=gpu:1 \
-        --time=40:00:00 \
+        --time=2:00:00 \
         --export=\
 JOB_NAME="$JOB_NAME",\
 JOB_DIR="$JOB_DIR",\

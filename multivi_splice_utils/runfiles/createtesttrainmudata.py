@@ -12,10 +12,15 @@
 # ## 0. Set Paths and Configuration
 
 # %%
-ROOT_PATH          = "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/"
-ATSE_DATA_PATH     = ROOT_PATH + "aligned_splicing_data_20250730_164104.h5ad"
-GE_DATA_PATH       = ROOT_PATH + "aligned_gene_expression_data_20250730_164104.h5ad"
-OUTPUT_MUDATA_PATH = ROOT_PATH + "subsetMAX4JUNC_combined_ge_splice_20250730_164104.h5mu"
+# ROOT_PATH          = "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/"
+# ATSE_DATA_PATH     = ROOT_PATH + "aligned_splicing_data_20250730_164104.h5ad"
+# GE_DATA_PATH       = ROOT_PATH + "aligned_gene_expression_data_20250730_164104.h5ad"
+# OUTPUT_MUDATA_PATH = ROOT_PATH + "subsetMAX4JUNC_combined_ge_splice_20250730_164104.h5mu"
+
+ROOT_PATH          = "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/HUMAN_SPLICING_FOUNDATION/MODEL_INPUT/072025/"
+ATSE_DATA_PATH     = ROOT_PATH + "aligned_splicing_data_20250731_212313.h5ad"
+GE_DATA_PATH       = ROOT_PATH + "aligned_gene_expression_data_20250731_212313.h5ad"
+OUTPUT_MUDATA_PATH = ROOT_PATH + "ge_splice_combined_20250730_164104.h5mu.h5mu"
 
 print("ATSE data path:", ATSE_DATA_PATH)
 print("GE data path:  ", GE_DATA_PATH)
@@ -43,6 +48,9 @@ from sklearn.model_selection import train_test_split
 atse = ad.read_h5ad(ATSE_DATA_PATH)
 ge   = ad.read_h5ad(GE_DATA_PATH)
 
+print(atse, flush = True)
+print(ge , flush = True)
+
 # Rescale GE length‐norm and recompute library size
 ge.layers["length_norm"] = (
     ge.layers["length_norm"] * np.median(ge.var["mean_transcript_length"])
@@ -50,16 +58,35 @@ ge.layers["length_norm"] = (
 ge.layers["length_norm"].data = np.floor(ge.layers["length_norm"].data)
 ge.obsm["X_library_size"] = ge.layers["length_norm"].sum(axis=1)
 
+
 # %% [markdown]
 # ## 3. Parse Numeric Age
 
 # %%
+import pandas as pd
+from pandas.api.types import is_integer_dtype
+
 for adata in (atse, ge):
-    adata.obs["age_numeric"] = (
-        adata.obs["age"]
-        .str.rstrip("m")      # drop trailing 'm'
-        .astype(int)          # convert to integer months
-    )
+    s = adata.obs["age"]
+
+    if is_integer_dtype(s):
+        # Already integer dtype → keep as-is (use nullable Int64 to preserve NAs)
+        adata.obs["age_numeric"] = s.astype("Int64")
+    else:
+        # Convert to string, strip, extract leading digits (optionally followed by 'm')
+        # Matches '12m', '12 m', '12', ' 12M ', etc.
+        extracted = (
+            s.astype("string")           # handles mixed/object dtypes and NaNs
+             .str.strip()
+             .str.extract(r'(?i)^\s*(\d+)\s*m?\s*$')[0]
+        )
+
+        adata.obs["age_numeric"] = pd.to_numeric(extracted, errors="coerce").astype("Int64")
+
+        # Optional: flag rows that failed to parse (had a value but became NA)
+        bad = adata.obs.index[adata.obs["age"].notna() & adata.obs["age_numeric"].isna()]
+        if len(bad) > 0:
+            print(f"[warn] {len(bad)} 'age' values could not be parsed in this AnnData.")
 
 # %% [markdown]
 # ## 4. Create `.var` Metadata
@@ -155,31 +182,65 @@ print(mdata)
 
 # %% [markdown]
 # ## 7. Stratified Train/Test Split by (Cell Type, Age)
+from sklearn.model_selection import train_test_split
+import numpy as np
+import pandas as pd
 
-# %%
-cells       = mdata.obs_names.to_list()
-cell_types  = mdata.obs["broad_cell_type"].values
-ages        = mdata.obs["age_numeric"].values
+TEST_SIZE    = 0.30
+RANDOM_STATE = 42
 
-# Build combined labels for stratification
-labels = [f"{ct}_{age}" for ct, age in zip(cell_types, ages)]
-
-train_cells, test_cells = train_test_split(
-    cells,
-    test_size=0.30,
-    random_state=42,
-    stratify=labels,
+# 1) Make age_group (fixed cutoffs). If age_numeric is in months, use (mdata.obs["age_numeric"]/12)
+years = mdata.obs["age_numeric"].astype("Float64")
+mdata.obs["age_group"] = pd.cut(
+    years, bins=[0, 35, 65, np.inf], labels=["young", "medium", "old"],
+    include_lowest=True, right=False
 )
 
+# 2) Build combined strata and collapse rare ones
+ct   = mdata.obs["broad_cell_type"].astype("string").fillna("NA")
+ageg = mdata.obs["age_group"].astype("string").fillna("NA")
+combo = (ct + "|" + ageg).astype("string")
+
+counts = combo.value_counts()
+rare_mask = combo.isin(counts[counts < 2].index)
+combo_collapsed = combo.mask(rare_mask, "OTHER")
+
+# Edge case: if OTHER has only 1 sample total, force it to train and stratify the rest
+cells = mdata.obs_names.to_numpy()
+if (combo_collapsed == "OTHER").sum() == 1:
+    only_other = cells[combo_collapsed == "OTHER"]
+    keep_mask  = combo_collapsed != "OTHER"
+
+    train_rest, test_rest = train_test_split(
+        cells[keep_mask],
+        test_size=TEST_SIZE,
+        random_state=RANDOM_STATE,
+        stratify=combo_collapsed[keep_mask],
+    )
+    train_cells = np.concatenate([only_other, train_rest])
+    test_cells  = test_rest
+else:
+    train_cells, test_cells = train_test_split(
+        cells,
+        test_size=TEST_SIZE,
+        random_state=RANDOM_STATE,
+        stratify=combo_collapsed,  # single call, robust
+    )
+
+# Slice
 mdata_train = mdata[train_cells, :].copy()
 mdata_test  = mdata[test_cells,  :].copy()
+
+print(f"Total: {len(cells)} | Train: {mdata_train.n_obs} | Test: {mdata_test.n_obs} "
+      f"(target test ratio {TEST_SIZE:.2f}; actual {mdata_test.n_obs/len(cells):.3f})")
+
 
 # %% [markdown]
 # ## 8. Write Out Results
 
 # %%
-mdata_train.write(ROOT_PATH + "train_70_30_20250730_subsetMAX4JUNC.h5mu")
-mdata_test.write( ROOT_PATH + "test_30_70_20250730_subsetMAX4JUNC.h5mu")
+mdata_train.write(ROOT_PATH + "train_70_30_ge_splicing_data_20250731_212313.h5mu")
+mdata_test.write( ROOT_PATH + "test_30_70_ge_splicing_data_20250731_212313.h5mu")
 mdata.write(OUTPUT_MUDATA_PATH)
 
 print(
