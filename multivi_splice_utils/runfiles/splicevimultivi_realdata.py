@@ -120,7 +120,7 @@ wandb_logger = WandbLogger(project="MLCB_SUBMISSION", config=full_config)
 # ------------------------------
 print(f"Loading Training MuData from {args.train_mdata_path}…")
 import mudata as mu
-mdata = mu.read_h5mu(args.train_mdata_path, backed = True)
+mdata = mu.read_h5mu(args.train_mdata_path, backed = "r")
 
 # Layer names
 x_layer = "junc_ratio"
@@ -283,132 +283,272 @@ for name, Z in latent_spaces.items():
 
 print("All UMAP embeddings complete.")
 
+
+# ------------------------------
+# 9b. Unsupervised clustering and cross-space consistency
+# ------------------------------
+import gc
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.metrics import adjusted_mutual_info_score
+
+LEIDEN_RESOLUTION = 1.0
+NN_OVERLAPS_KS = [2, 5, 15, 50, 100]
+
+print("Running Leiden clustering on each latent space and computing consistency…")
+
+# Helper: build neighbors and Leiden using the already-computed latent embedding stored in obsm
+def run_leiden_on_basis(ad, basis_key: str, neigh_key: str, leiden_key: str, resolution: float):
+    sc.pp.neighbors(ad, use_rep=basis_key, key_added=neigh_key)
+    sc.tl.leiden(ad, neighbors_key=neigh_key, key_added=leiden_key, resolution=resolution)
+
+# Compute Leiden per latent space with independent neighbor graphs
+leiden_keys = {}
+for name in ["joint", "expression", "splicing"]:
+    basis_key = f"X_latent_{name}"
+    neigh_key = f"neighbors_{name}_leiden"
+    leiden_key = f"leiden_{name}"
+    run_leiden_on_basis(mdata["rna"], basis_key, neigh_key, leiden_key, LEIDEN_RESOLUTION)
+    leiden_keys[name] = leiden_key
+
+    # Log basic clustering stats
+    n_cl = int(mdata["rna"].obs[leiden_key].nunique())
+    wandb.log({f"clustering/{name}_leiden_n_clusters": n_cl})
+
+# Pairwise same-cluster consistency:
+# For each cell i, let Cx(i) be its cluster in space X and Cy(i) in space Y.
+# Define Sx(i) = set of indices in Cx(i) \ {i}, Sy(i) = set in Cy(i) \ {i}.
+# Score cell-wise overlap = |Sx(i) ∩ Sy(i)| / max(|Sx(i)|, 1).
+# Aggregate by cell type to find percent NOT consistent = 100*(1 - mean_overlap).
+pairs = [("expression", "joint"), ("splicing", "joint"), ("expression", "splicing")]
+
+cell_type_col = "broad_cell_type"
+if "medium_cell_type" in mdata["rna"].obs:
+    cell_type_col = "medium_cell_type"
+
+labels_ct = mdata["rna"].obs[cell_type_col].astype(str).values
+n_cells = mdata["rna"].n_obs
+idx_all = np.arange(n_cells, dtype=np.int32)
+
+# Precompute cluster membership dicts
+cluster_members = {}
+for name in ["joint", "expression", "splicing"]:
+    labs = mdata["rna"].obs[leiden_keys[name]].values
+    # map cluster -> numpy array of member indices
+    members = {}
+    for cid, grp in pd.Series(idx_all).groupby(labs):
+        members[cid] = grp.values.astype(np.int32, copy=False)
+    cluster_members[name] = (labs, members)
+
+# Compute per-cell overlap for each pair and summarize per cell type
+heat_records = []
+for a, b in pairs:
+    labs_a, mem_a = cluster_members[a]
+    labs_b, mem_b = cluster_members[b]
+
+    overlap = np.empty(n_cells, dtype=np.float32)
+    for i in range(n_cells):
+        ca = labs_a[i]
+        cb = labs_b[i]
+        Sa = mem_a[ca]
+        Sb = mem_b[cb]
+        # exclude self quickly if present at the first occurrence
+        # Using set operations on small arrays by converting to Python sets lazily
+        # Note: sizes are typically moderate under Leiden, so this is fine
+        if Sa.size <= 1:
+            overlap[i] = np.nan
+            continue
+        # Remove i from Sa without copying whole array when i is first element is not guaranteed, so do a mask
+        # For small sizes this is acceptable
+        Sa_no_i = Sa[Sa != i]
+        # Compute intersection size
+        inter_sz = len(set(Sa_no_i).intersection(Sb))
+        overlap[i] = inter_sz / float(Sa_no_i.size)
+
+    # Attach per-cell result to obs for traceability
+    key_cell = f"samecluster_overlap_{a}_vs_{b}"
+    mdata["rna"].obs[key_cell] = overlap
+
+    # Summary stats overall
+    mean_ov = float(np.nanmean(overlap))
+    median_ov = float(np.nanmedian(overlap))
+    wandb.log({
+        f"clustering/{a}_vs_{b}_samecluster_mean": mean_ov,
+        f"clustering/{a}_vs_{b}_samecluster_median": median_ov,
+    })
+
+    # Per cell type: percent NOT consistent = 100*(1 - mean overlap)
+    df_tmp = pd.DataFrame({
+        "cell_type": labels_ct,
+        "overlap": overlap
+    }).groupby("cell_type", as_index=False)["overlap"].mean()
+    df_tmp["pct_not_consistent"] = (1.0 - df_tmp["overlap"].fillna(0.0)) * 100.0
+    df_tmp["pair"] = f"{a}_vs_{b}"
+    heat_records.append(df_tmp[["cell_type", "pair", "pct_not_consistent"]])
+
+# Build heatmap table
+heat_df = pd.concat(heat_records, ignore_index=True)
+heat_pivot = heat_df.pivot(index="cell_type", columns="pair", values="pct_not_consistent").fillna(0.0)
+
+plt.figure(figsize=(max(6, 0.25*heat_pivot.shape[1] + 4), max(6, 0.3*heat_pivot.shape[0] + 3)))
+sns.heatmap(heat_pivot, annot=True, fmt=".1f", cbar=True)
+plt.title(f"Percent not consistent by cell type (Leiden, res={LEIDEN_RESOLUTION})")
+plt.tight_layout()
+out_path = f"{args.fig_dir}/heatmap_pct_not_consistent_leiden_res_{LEIDEN_RESOLUTION}.png"
+plt.savefig(out_path, dpi=300, bbox_inches="tight")
+wandb.log({"clustering/heatmap_pct_not_consistent": wandb.Image(out_path)})
+plt.close()
+
+# Optional: global alignment sanity via AMI between clusterings
+for a, b in pairs:
+    ami = adjusted_mutual_info_score(
+        mdata["rna"].obs[leiden_keys[a]].values,
+        mdata["rna"].obs[leiden_keys[b]].values
+    )
+    wandb.log({f"clustering/{a}_vs_{b}_AMI": float(ami)})
+
+del heat_records, heat_pivot, heat_df
+gc.collect()
+
+
 import gc
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 
 print("Computing expression↔︎splicing k-NN overlap on training data…")
+# ------------------------------
+# 9c. Extended kNN overlap for multiple k and space pairs
+# ------------------------------
+print("Computing extended kNN overlap for multiple k and space pairs…")
 
-KNN_K = 15
-k = int(KNN_K)
+# Use the latent spaces you already computed
+Z_joint = latent_spaces["joint"]
+Z_expr  = latent_spaces["expression"]
+Z_sp    = latent_spaces["splicing"]
 
-Z_expr = latent_spaces["expression"]
-Z_sp   = latent_spaces["splicing"]
+pairs_knn = [
+    ("expression", Z_expr, "joint", Z_joint),
+    ("splicing",   Z_sp,   "joint", Z_joint),
+]
 
-n = Z_expr.shape[0]
-assert Z_sp.shape[0] == n, "Expression and splicing latents must have same #rows (cells)."
+from sklearn.neighbors import NearestNeighbors
+import numpy as np
+import gc
+import matplotlib.pyplot as plt
+import scanpy as sc
 
-# Build kNN (exclude self by asking k+1 then dropping)
-nnb_expr = NearestNeighbors(n_neighbors=min(k+1, n), metric="euclidean", n_jobs=-1)
-nnb_sp   = NearestNeighbors(n_neighbors=min(k+1, n), metric="euclidean", n_jobs=-1)
+# Normalize/validate ks
+ks = NN_OVERLAPS_KS
+kmax = max(ks)
+n = Z_joint.shape[0]
 
-nnb_expr.fit(Z_expr)
-nnb_sp.fit(Z_sp)
+def knn_indices(Z, k):
+    nn = NearestNeighbors(n_neighbors=min(k+1, n), metric="euclidean", n_jobs=-1)
+    nn.fit(Z)
+    return nn.kneighbors(Z, return_distance=False)
 
-# Request indices only to avoid allocating distances
-idx_expr = nnb_expr.kneighbors(Z_expr, return_distance=False)
-idx_sp   = nnb_sp.kneighbors(Z_sp,   return_distance=False)
-
-# Drop self without copying full arrays when possible
-def drop_self_inplace(idx_full: np.ndarray, k: int) -> np.ndarray:
-    """
-    Returns a view (slice) with self dropped if present in col 0; otherwise trims to k.
-    Ensures dtype int32 to cut memory ~in half vs default int64.
-    """
-    # slice first, then astype with copy=False (will copy only if needed)
+def strip_self(idx_full, k):
+    # drop potential self neighbor (first column) or trim to k
     if idx_full.shape[1] > 0:
-        idx_k = idx_full[:, 1:] if idx_full.shape[1] > k else idx_full[:, :k]
+        out = idx_full[:, 1:] if idx_full.shape[1] > k else idx_full[:, :k]
     else:
-        idx_k = idx_full  # degenerate
-    if idx_k.dtype != np.int32:
-        idx_k = idx_k.astype(np.int32, copy=False)
-    return idx_k
+        out = idx_full
+    if out.dtype != np.int32:
+        out = out.astype(np.int32, copy=False)
+    return out
 
-idx_expr_k = drop_self_inplace(idx_expr, k)
-idx_sp_k   = drop_self_inplace(idx_sp,   k)
+# Precompute neighbor indices once at kmax+1 for each space
+idx_cache = {}
+for name, Z in [("expression", Z_expr), ("splicing", Z_sp), ("joint", Z_joint)]:
+    idx = knn_indices(Z, kmax)  # shape n x (kmax+1)
+    idx_cache[name] = idx.astype(np.int32, copy=False)
 
-# Free the larger (k+1) neighbor arrays if they aren't just views
-if idx_expr_k.base is not idx_expr:
-    del idx_expr
-else:
-    # idx_expr_k is a view; still safe to delete name
-    del idx_expr
-if idx_sp_k.base is not idx_sp:
-    del idx_sp
-else:
-    del idx_sp
+# For each pair and each k, compute overlap counts, attach to obs, log stats, and plot UMAPs
+for a_name, Za, b_name, Zb in pairs_knn:
+    idx_a_full = idx_cache[a_name]
+    idx_b_full = idx_cache[b_name]
 
+    for k in ks:
+        # slice to current k and drop self
+        idx_a = strip_self(idx_a_full[:, :min(k+1, idx_a_full.shape[1])], k)
+        idx_b = strip_self(idx_b_full[:, :min(k+1, idx_b_full.shape[1])], k)
+
+        # Per-cell overlap size divided by k
+        overlap_frac = np.empty(n, dtype=np.float32)
+        for i in range(n):
+            a = idx_a[i]
+            b = idx_b[i]
+            if a.size == 0:
+                overlap_frac[i] = np.nan
+                continue
+            inter_sz = np.intersect1d(a, b, assume_unique=False).size
+            overlap_frac[i] = inter_sz / float(min(k, a.size))
+
+        # Attach and summarize
+        key_obs = f"nn_overlap_{a_name}_vs_{b_name}_k{k}_pct"
+        mdata["rna"].obs[key_obs] = (100.0 * overlap_frac).astype(np.float32, copy=False)
+
+        vals = mdata["rna"].obs[key_obs].values
+        mean_pct   = float(np.nanmean(vals))
+        median_pct = float(np.nanmedian(vals))
+        p10        = float(np.nanquantile(vals, 0.10))
+        p90        = float(np.nanquantile(vals, 0.90))
+
+        wandb.log({
+            f"knn-extended/{a_name}_vs_{b_name}_k{k}_mean_pct": mean_pct,
+            f"knn-extended/{a_name}_vs_{b_name}_k{k}_median_pct": median_pct,
+            f"knn-extended/{a_name}_vs_{b_name}_k{k}_p10_pct": p10,
+            f"knn-extended/{a_name}_vs_{b_name}_k{k}_p90_pct": p90,
+        })
+
+        # Joint-UMAP overlays (wide + square), colored by current pairwise overlap metric
+        if "X_umap_joint" in mdata["rna"].obsm_keys():
+            # Wide
+            plt.figure(figsize=(13, 6))
+            sc.pl.embedding(
+                mdata["rna"],
+                basis="X_umap_joint",
+                color=key_obs,
+                legend_loc=None,
+                frameon=True,
+                color_map="viridis",
+                show=False,
+            )
+            plt.title(f"Joint UMAP — {a_name}↔{b_name} k={k} overlap (%)")
+            plt.tight_layout(rect=[0, 0, 1, 0.95])
+            out_path = f"{args.fig_dir}/umap_joint_{a_name}_vs_{b_name}_k{k}.png"
+            plt.savefig(out_path, dpi=300, bbox_inches="tight")
+            wandb.log({f"knn-extended/umap_joint_{a_name}_vs_{b_name}_k{k}": wandb.Image(out_path)})
+            plt.close()
+
+            # Square
+            plt.figure(figsize=(6, 6))
+            sc.pl.embedding(
+                mdata["rna"],
+                basis="X_umap_joint",
+                color=key_obs,
+                legend_loc=None,
+                frameon=True,
+                color_map="viridis",
+                show=False,
+            )
+            plt.title(f"Joint UMAP — {a_name}↔{b_name} k={k} overlap (%)")
+            plt.tight_layout(rect=[0, 0, 1, 0.95])
+            out_path = f"{args.fig_dir}/umap_sqr_joint_{a_name}_vs_{b_name}_k{k}.png"
+            plt.savefig(out_path, dpi=300, bbox_inches="tight")
+            wandb.log({f"knn-extended/umap_sqr_joint_{a_name}_vs_{b_name}_k{k}": wandb.Image(out_path)})
+            plt.close()
+
+        # Clean up per-k temporaries
+        del overlap_frac
+        gc.collect()
+
+# Free large neighbor caches
+del idx_cache
 gc.collect()
 
-# Per-cell overlap (float32 to save memory)
-overlap_frac = np.empty(n, dtype=np.float32)
-
-# Row-wise intersection keeps temporaries tiny (≤k)
-for i in range(n):
-    a = idx_expr_k[i]
-    b = idx_sp_k[i]
-    if a.size == 0:
-        overlap_frac[i] = np.nan
-        continue
-    # np.intersect1d allocates a small temporary (≤k)
-    inter_sz = np.intersect1d(a, b, assume_unique=False).size
-    denom = float(min(k, a.size))
-    overlap_frac[i] = inter_sz / denom
-
-# Not needed anymore
-del idx_expr_k, idx_sp_k
-gc.collect()
-
-overlap_pct = (100.0 * overlap_frac).astype(np.float32, copy=False)
-
-# attach to AnnData for plotting
-overlap_key = f"nn_overlap_expr_splice_k{k}_pct"
-mdata["rna"].obs[overlap_key] = overlap_pct  # AnnData will own a copy if needed
-
-# Summary stats (nan-aware); quantiles via nanquantile avoid extra temp copies
-mean_pct   = float(np.nanmean(overlap_pct))
-median_pct = float(np.nanmedian(overlap_pct))
-p10        = float(np.nanquantile(overlap_pct, 0.10))
-p90        = float(np.nanquantile(overlap_pct, 0.90))
-
-print(f"[train] NN overlap (k={k}) — mean: {mean_pct:.2f}%, median: {median_pct:.2f}%, p10: {p10:.2f}%, p90: {p90:.2f}%")
-
-wandb.log({
-    f"real-train/nn_overlap_k{k}_mean_pct": mean_pct,
-    f"real-train/nn_overlap_k{k}_median_pct": median_pct,
-    f"real-train/nn_overlap_k{k}_p10_pct": p10,
-    f"real-train/nn_overlap_k{k}_p90_pct": p90,
-})
-
-# Plot (UMAP) — keep memory usage low and clean up figures
-key_umap_joint = "X_umap_joint"
-if key_umap_joint in mdata["rna"].obsm_keys():
-    import matplotlib.pyplot as plt
-    import scanpy as sc
-
-    plt.figure(figsize=(8, 6))
-    sc.pl.embedding(
-        mdata["rna"],
-        basis=key_umap_joint,
-        color=overlap_key,
-        frameon=True,
-        legend_loc=None,
-        color_map="viridis",
-        show=False,
-    )
-    plt.title(f"Joint UMAP colored by expr↔︎splice NN-overlap (k={k}, %)")
-    plt.tight_layout()
-
-    out_path = f"{args.fig_dir}/umap_joint_nn_overlap_k{k}.png"
-    plt.savefig(out_path, dpi=300, bbox_inches="tight")
-    wandb.log({f"umap_joint_nn_overlap_k{k}": wandb.Image(out_path)})
-    plt.close()
-else:
-    print(f"[train] WARNING: {key_umap_joint} not found; skipping overlap-colored UMAP.")
-
-# Final explicit cleanup for peace of mind
-del overlap_frac  # overlap_pct is retained in AnnData
-gc.collect()
 
 # ------------------------------
 # 10. Unified Evaluation on TRAIN only
@@ -506,7 +646,7 @@ torch.cuda.empty_cache()
 # 11. TEST split + masked‐junction imputation
 # ------------------------------
 print("\nLoading TEST MuData for evaluation and imputation…")
-mdata = mu.read_h5mu(args.test_mdata_path, backed = True)
+mdata = mu.read_h5mu(args.test_mdata_path, backed = "r")
 
 print("Setting up SpliceVI PartialVAE…")
 scvi.model.MULTIVISPLICE.setup_mudata(
@@ -534,7 +674,7 @@ torch.cuda.empty_cache()
 
 print(f"\n=== Masked-ATSE imputation on TEST using {args.masked_test_mdata_path} ===")
 MASK_FRACTION = 0.2  # fraction of ATSEs to mask
-mdata = mu.read_h5mu(args.masked_test_mdata_path, backed = True)
+mdata = mu.read_h5mu(args.masked_test_mdata_path, backed = "r")
 ad_masked = mdata["splicing"]
 
 print(f"Setting up SpliceVI PartialVAE… ")
@@ -552,13 +692,12 @@ scvi.model.MULTIVISPLICE.setup_mudata(
 
 from scipy import sparse
 
-# 6) run imputation and evaluate on masked-out entries using sparse indexing
-print("Step 6: running imputation and computing correlations")
-model.module.eval()
-with torch.no_grad():
-    decoded = model.get_normalized_splicing(adata=mdata, return_numpy=True)
+# 6) run imputation in cell-index batches using args.batch_size
+print("Step 6: running batched imputation and computing correlations")
 
-# ensure CSR for fast row/col lookups
+model.module.eval()
+
+# Ensure CSR for fast row slicing
 masked_orig = ad_masked.layers["junc_ratio_masked_original"]
 if not sparse.isspmatrix_csr(masked_orig):
     masked_orig = sparse.csr_matrix(masked_orig)
@@ -567,31 +706,63 @@ bin_mask = ad_masked.layers["junc_ratio_masked_bin_mask"]
 if not sparse.isspmatrix_csr(bin_mask):
     bin_mask = sparse.csr_matrix(bin_mask)
 
-# get masked locations (row, col indices)
-rows, cols = bin_mask.nonzero()
+n_cells = bin_mask.shape[0]
+bs = int(args.batch_size) if getattr(args, "batch_size", None) else 512
+assert bs > 0, "batch_size must be positive"
 
-# ground-truth original PSI values (may be zero)
-orig_vals = masked_orig[rows, cols].A1  # .A1 = flatten to 1D
+orig_all = []
+pred_all = []
+pairs_total = 0
 
-# model predictions (dense output)
-pred_vals = decoded[rows, cols]
+for start in range(0, n_cells, bs):
+    stop = min(start + bs, n_cells)
+    # find masked positions for these rows only
+    submask = bin_mask[start:stop]                # CSR
+    sub_r, sub_c = submask.nonzero()             # local rows, global cols
+    if sub_r.size == 0:
+        continue
 
-# safety check
-if orig_vals.size == 0:
-    print("[impute-test] No masked entries found in bin mask; skipping correlation.")
+    # decode only these cells, using your existing batch_size for internal minibatching too
+    idx = np.arange(start, stop, dtype=np.int64)
+    with torch.inference_mode():
+        decoded_batch = model.get_normalized_splicing(
+            adata=mdata,
+            indices=idx,
+            return_numpy=True,
+            batch_size=bs,          # use args.batch_size here
+        )                           # shape: (stop-start, n_junc)
+
+    # ground truth at masked positions
+    orig_vals_b = masked_orig[start:stop][:, sub_c][sub_r, np.arange(sub_r.size)].A1
+    # predictions at same positions
+    pred_vals_b = decoded_batch[sub_r, sub_c]
+
+    orig_all.append(orig_vals_b.astype(np.float32, copy=False))
+    pred_all.append(pred_vals_b.astype(np.float32, copy=False))
+    pairs_total += orig_vals_b.size
+
+    # free batch ASAP
+    del decoded_batch
+    torch.cuda.empty_cache()
+
+if pairs_total == 0:
+    print("[impute-test] No masked entries found; skipping correlation.")
 else:
-    import numpy as np
+    orig_all = np.concatenate(orig_all, dtype=np.float32)
+    pred_all = np.concatenate(pred_all, dtype=np.float32)
+
+    pearson_m  = float(np.corrcoef(orig_all, pred_all)[0, 1])
     from scipy.stats import spearmanr
+    spearman_m = float(spearmanr(orig_all, pred_all, nan_policy="omit")[0])
 
-    pearson_m  = np.corrcoef(orig_vals, pred_vals)[0, 1]
-    spearman_m = spearmanr(orig_vals, pred_vals, nan_policy="omit")[0]
-
-    print(f"[impute-test] masked‐ATSE PSI corr — Pearson: {pearson_m:.4f}, Spearman: {spearman_m:.4f}")
+    print(f"[impute-test] masked-ATSE PSI corr — Pearson: {pearson_m:.4f}, Spearman: {spearman_m:.4f}  (n={pairs_total})")
     wandb.log({
         "impute-test/psi_pearson_corr_masked_atse": pearson_m,
         "impute-test/psi_spearman_corr_masked_atse": spearman_m,
-        "impute-test/n_masked_entries": int(orig_vals.size),
+        "impute-test/n_masked_entries": int(pairs_total),
+        "impute-test/batch_size_imputation": bs,
     })
+
 
 # ------------------------------
 # 12. Finish

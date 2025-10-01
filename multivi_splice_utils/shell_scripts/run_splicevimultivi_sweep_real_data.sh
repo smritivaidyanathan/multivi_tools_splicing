@@ -4,19 +4,19 @@
 
 ### ─── USER CONFIG ─────────────────────────────────────────────────────────
 # Default data & hyperparameters (override in-script or via sbatch --export)
-# TRAIN_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/train_70_30_ge_splice_combined_20250730_164104.h5mu"
-# TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/test_30_70_ge_splice_combined_20250730_164104.h5mu"
-# MASKED_TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/MASKED_0.2_test_30_70_ge_splice_combined_20250730_164104.h5mu"
+TRAIN_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/train_70_30_ge_splice_combined_20250730_164104.h5mu"
+TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/test_30_70_ge_splice_combined_20250730_164104.h5mu"
+MASKED_TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/MASKED_0.2_test_30_70_ge_splice_combined_20250730_164104.h5mu"
 
-TRAIN_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/HUMAN_SPLICING_FOUNDATION/MODEL_INPUT/072025/train_70_30_ge_splicing_data_20250731_212313.h5mu"
-TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/HUMAN_SPLICING_FOUNDATION/MODEL_INPUT/072025/test_30_70_ge_splicing_data_20250731_212313.h5mu"
-MASKED_TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/HUMAN_SPLICING_FOUNDATION/MODEL_INPUT/072025/MASKED_0.2_test_30_70_ge_splicing_data_20250731_212313.h5mu"
+# TRAIN_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/HUMAN_SPLICING_FOUNDATION/MODEL_INPUT/072025/train_70_30_ge_splicing_data_20250731_212313.h5mu"
+# TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/HUMAN_SPLICING_FOUNDATION/MODEL_INPUT/072025/test_30_70_ge_splicing_data_20250731_212313.h5mu"
+# MASKED_TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/HUMAN_SPLICING_FOUNDATION/MODEL_INPUT/072025/MASKED_0.2_test_30_70_ge_splicing_data_20250731_212313.h5mu"
 
 
 DROPOUT_RATE=0.01
 SPLICING_LOSS_TYPE="dirichlet_multinomial"   # options: binomial | beta_binomial | dirichlet_multinomial
 
-MAX_EPOCHS=1
+MAX_EPOCHS=500
 LR=1e-5
 BATCH_SIZE=256
 N_EPOCHS_KL_WARMUP=100
@@ -69,10 +69,10 @@ cat > "$BATCH_RUN_DIR/job_template.sh" << 'EOF'
 #SBATCH --job-name=${JOB_NAME}
 #SBATCH --output=${JOB_DIR}/slurm_%j.out
 #SBATCH --error=${JOB_DIR}/slurm_%j.err
-#SBATCH --mem=300G
+#SBATCH --mem=230G
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --time=2:00:00
+#SBATCH --time=27:00:00
 
 # Debug prints
 echo "   MODALITY_WEIGHTS= $MODALITY_WEIGHTS"
@@ -152,18 +152,18 @@ echo "→ Job template written. Submitting sweep jobs..."
 # 2) Define sweep configurations
 ENCODER_TYPES=(
   # "PartialEncoderWeightedSumEDDIMultiWeight"
-  # "PartialEncoderEDDI"
-  # "PartialEncoderEDDIATSE"
   "PartialEncoderEDDI"
-  # "PartialEncoderEDDIATSE"
+  # # "PartialEncoderEDDIATSE"
+  # "PartialEncoderEDDI"
+  # # "PartialEncoderEDDIATSE"
   # "PartialEncoderWeightedSumEDDIMultiWeightATSE"
 )
 POOL_MODES=(
   # ""
-  # "sum"
-  # "sum"
-  "mean"
+  "sum"
+  # # "sum"
   # "mean"
+  # # "mean"
   # ""
 )
 
@@ -189,7 +189,7 @@ for CODE_DIM in "${CODE_DIMS[@]}"; do
         IMPUTEDENCODER=
       fi
 
-      JOB_NAME="sweep_REAL_cd=${CODE_DIM}_mn=${MAX_NOBS}_ld=${N_LATENT}_lr=${LR}_${i}_${FORWARD_STYLE}_${ENCODER_TYPE}"
+      JOB_NAME="mouse_trainandtest_REAL_cd=${CODE_DIM}_mn=${MAX_NOBS}_ld=${N_LATENT}_lr=${LR}_${i}_${FORWARD_STYLE}_${ENCODER_TYPE}"
       [ -n "$POOL_MODE" ]            && JOB_NAME+="_pool=${POOL_MODE}"
       [ -n "$NUM_WEIGHT_VECTORS" ]   && JOB_NAME+="_W=${NUM_WEIGHT_VECTORS}"
 
@@ -203,10 +203,10 @@ for CODE_DIM in "${CODE_DIMS[@]}"; do
         --job-name="$JOB_NAME" \
         --output="$JOB_DIR/slurm_%j.out" \
         --error="$JOB_DIR/slurm_%j.err" \
-        --mem=300G \
+        --mem=230G \
         --partition=gpu \
         --gres=gpu:1 \
-        --time=2:00:00 \
+        --time=27:00:00 \
         --export=\
 JOB_NAME="$JOB_NAME",\
 JOB_DIR="$JOB_DIR",\
