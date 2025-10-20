@@ -154,17 +154,17 @@ ENCODER_TYPES=(
   # "PartialEncoderWeightedSumEDDIMultiWeight"
   "PartialEncoderEDDI"
   # # "PartialEncoderEDDIATSE"
-  # "PartialEncoderEDDI"
+  "PartialEncoderEDDI"
   # # "PartialEncoderEDDIATSE"
-  # "PartialEncoderWeightedSumEDDIMultiWeightATSE"
+  "PartialEncoderWeightedSumEDDIMultiWeightATSE"
 )
 POOL_MODES=(
   # ""
   "sum"
   # # "sum"
-  # "mean"
+  "mean"
   # # "mean"
-  # ""
+  ""
 )
 
 # 3) Loop and submit
