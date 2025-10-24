@@ -11,22 +11,21 @@
 # %% [markdown]
 # ## 0. Set Paths and Configuration
 
-# %%
-# ROOT_PATH          = "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/"
-# ATSE_DATA_PATH     = ROOT_PATH + "aligned_splicing_data_20250730_164104.h5ad"
-# GE_DATA_PATH       = ROOT_PATH + "aligned_gene_expression_data_20250730_164104.h5ad"
-# OUTPUT_MUDATA_PATH = ROOT_PATH + "subsetMAX4JUNC_combined_ge_splice_20250730_164104.h5mu"
+# ROOT_PATH          = "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/102025/"
+# ATSE_DATA_PATH     = ROOT_PATH + "model_ready_aligned_splicing_data_20251009_024406.h5ad"
+# GE_DATA_PATH       = ROOT_PATH + "model_ready_gene_expression_data_20251009_024406.h5ad"
+# OUTPUT_MUDATA_PATH = ROOT_PATH + "model_ready_combined_gene_expression_aligned_splicing_20251009_024406.h5ad"
 
-ROOT_PATH          = "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/HUMAN_SPLICING_FOUNDATION/MODEL_INPUT/072025/"
-ATSE_DATA_PATH     = ROOT_PATH + "aligned_splicing_data_20250731_212313.h5ad"
-GE_DATA_PATH       = ROOT_PATH + "aligned_gene_expression_data_20250731_212313.h5ad"
-OUTPUT_MUDATA_PATH = ROOT_PATH + "ge_splice_combined_20250730_164104.h5mu.h5mu"
+ROOT_PATH          = "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/HUMAN_SPLICING_FOUNDATION/MODEL_INPUT/102025/"
+ATSE_DATA_PATH     = ROOT_PATH + "model_ready_aligned_splicing_data_20251009_023419.h5ad"
+GE_DATA_PATH       = ROOT_PATH + "model_ready_gene_expression_data_20251009_023419.h5ad"
+OUTPUT_MUDATA_PATH = ROOT_PATH + "model_ready_combined_gene_expression_aligned_splicing_data_20251009_023419.h5mu"
 
 print("ATSE data path:", ATSE_DATA_PATH)
 print("GE data path:  ", GE_DATA_PATH)
 print("Output MuData path:", OUTPUT_MUDATA_PATH)
 
-MAX_JUNCTIONS_PER_ATSE = 4
+MAX_JUNCTIONS_PER_ATSE = 100000000000
 
 print(f"MAX_JUNCTIONS_PER_ATSE: {MAX_JUNCTIONS_PER_ATSE}")
 
@@ -239,8 +238,8 @@ print(f"Total: {len(cells)} | Train: {mdata_train.n_obs} | Test: {mdata_test.n_o
 # ## 8. Write Out Results
 
 # %%
-mdata_train.write(ROOT_PATH + "train_70_30_ge_splicing_data_20250731_212313.h5mu")
-mdata_test.write( ROOT_PATH + "test_30_70_ge_splicing_data_20250731_212313.h5mu")
+mdata_train.write(ROOT_PATH + "train_70_30_model_ready_aligned_splicing_data_20251009_023419.h5mu")
+mdata_test.write( ROOT_PATH + "test_30_70_model_ready_aligned_splicing_data_20251009_023419.h5mu")
 mdata.write(OUTPUT_MUDATA_PATH)
 
 print(

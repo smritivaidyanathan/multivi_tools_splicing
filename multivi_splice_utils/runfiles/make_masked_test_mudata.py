@@ -1,26 +1,25 @@
-#!/usr/bin/env python
-"""
-Pre-mask splicing modality in a test MuData by masking out a fraction of ATSEs.
-Also writes:
-  - 'junc_ratio_masked_original': original junc_ratio values at masked positions
-  - 'junc_ratio_masked_bin_mask': binary mask (1 where a junction is masked because its ATSE was masked)
-"""
+# top of file, add
+import argparse
+from pathlib import Path
+from datetime import datetime
 import numpy as np
 import mudata as mu
 from scipy import sparse
 
-# Configuration
-#/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/HUMAN_SPLICING_FOUNDATION/MODEL_INPUT/072025/
-INPUT_PATH = (
-    "/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/HUMAN_SPLICING_FOUNDATION/MODEL_INPUT/102025/test_30_70_model_ready_combined_gene_expression_aligned_splicing_20251009_024406.h5mu"
-)
-MASK_FRACTION = 0.25  # fraction of observed ATSEs to mask per cell
-OUTPUT_PATH = (
-    f"/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/HUMAN_SPLICING_FOUNDATION/MODEL_INPUT/102025/MASKED_{MASK_FRACTION*100}_PERCENT_test_30_70_model_ready_combined_gene_expression_aligned_splicing_20251009_024406.h5mu"
-)
-SEED = 0
+def mask_file(input_path: str, mask_fraction: float, seed: int):
+    assert 0.0 < mask_fraction < 1.0, "mask_fraction must be in (0, 1)"
+    in_path = Path(input_path)
+    if not in_path.exists():
+        raise FileNotFoundError(in_path)
 
-def main():
+    fracpct = int(round(mask_fraction * 100))
+    out_path = in_path.with_name(f"MASKED_{fracpct}_PERCENT_{in_path.name}")  # same dir, prefixed file
+
+    INPUT_PATH  = str(in_path)
+    MASK_FRACTION = mask_fraction
+    OUTPUT_PATH = str(out_path)
+    SEED = seed
+
     # 1) Load MuData and extract the splicing AnnData
     print(f"Loading MuData from {INPUT_PATH}", flush=True)
     mdata = mu.read_h5mu(INPUT_PATH)
@@ -139,6 +138,20 @@ def main():
     sp_mod = mdata["splicing"]
     print(f"Splicing layers after masking: {list(sp_mod.layers.keys())}", flush=True)
     print(f"Splicing shape: {sp_mod.n_obs} cells x {sp_mod.n_vars} junctions", flush=True)
+
+def parse_args():
+    p = argparse.ArgumentParser(description="Mask a fraction of ATSEs in splicing modality.")
+    p.add_argument("--inputs", nargs="+", required=True, help="One or more .h5mu paths")
+    p.add_argument("--fractions", nargs="+", type=float, required=True, help="Mask fractions, e.g. 0.1 0.25 0.5")
+    p.add_argument("--seed", type=int, default=0)
+    return p.parse_args()
+
+def main():
+    args = parse_args()
+    for f in args.inputs:
+        for frac in args.fractions:
+            print(f"[submit] {f} at frac={frac}")
+            mask_file(f, frac, args.seed)
 
 if __name__ == "__main__":
     main()

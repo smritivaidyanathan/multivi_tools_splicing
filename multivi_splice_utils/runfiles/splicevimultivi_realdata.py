@@ -56,8 +56,8 @@ parser.add_argument(
     help=f"Test MuData (.h5ad) input path (default: {DEFAULT_ANN_DATA})"
 )
 parser.add_argument(
-    "--masked_test_mdata_path", type=str, default=DEFAULT_ANN_DATA,
-    help=f"Test MuData (.h5ad) input path (default: {DEFAULT_ANN_DATA})"
+    "--masked_test_mdata_paths", nargs="+", default=[],
+    help="One or more masked TEST MuData .h5mu paths (e.g., 25%, 50%, 75%)"
 )
 parser.add_argument(
     "--model_dir", type=str, default=DEFAULT_MODEL_DIR,
@@ -111,7 +111,9 @@ full_config.update({
     "model_dir": args.model_dir,
     "fig_dir": args.fig_dir,
     "umap_colors": args.umap_colors,
+    "masked_test_mdata_paths": args.masked_test_mdata_paths,
 })
+
 wandb.init(project="MLCB_SUBMISSION", config=full_config)
 wandb_logger = WandbLogger(project="MLCB_SUBMISSION", config=full_config)
 
@@ -221,31 +223,11 @@ for name, Z in latent_spaces.items():
 
     print(f"Generating UMAP for latent space: {name}")
 
-    import matplotlib.pyplot as plt
-    plt.figure(figsize=(13, 6))
-    sc.pl.embedding(
-        mdata["rna"],
-        basis=key_umap,                 # <- custom basis lives in .obsm[key_umap]
-        color=umap_color_key,
-        legend_loc=None,
-        frameon=True,
-        legend_fontsize=10,
-        show=False,
-    )
-    plt.title(f"UMAP by {umap_color_key} – {name}")
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
-
-    out_path = f"{args.fig_dir}/umap_{umap_color_key}_{name}.png"
-    plt.savefig(out_path, dpi=300, bbox_inches="tight")
-    wandb.log({f"umap_{umap_color_key}_{name}": wandb.Image(out_path)})
-    plt.close()
-
-
-    
+    # square, no legend
     plt.figure(figsize=(6, 6))
     sc.pl.embedding(
         mdata["rna"],
-        basis=key_umap,                 # <- custom basis lives in .obsm[key_umap]
+        basis=key_umap,
         color=umap_color_key,
         legend_loc=None,
         frameon=True,
@@ -254,31 +236,53 @@ for name, Z in latent_spaces.items():
     )
     plt.title(f"UMAP by {umap_color_key} – {name}")
     plt.tight_layout(rect=[0, 0, 1, 0.95])
-
-    out_path = f"{args.fig_dir}/umap_{umap_color_key}_{name}.png"
+    out_path = f"{args.fig_dir}/umap_sqr_{umap_color_key}_{name}.png"
     plt.savefig(out_path, dpi=300, bbox_inches="tight")
-    wandb.log({f"umap_sqr_{umap_color_key}_{name}": wandb.Image(out_path)})
+    wandb.log({f"umap_sqr/{umap_color_key}_{name}": wandb.Image(out_path)})
     plt.close()
 
+    # optionally also save square for the other label if different
     if cell_type_classification_key != umap_color_key:
-        plt.figure(figsize=(13, 6))
+        plt.figure(figsize=(6, 6))
         sc.pl.embedding(
             mdata["rna"],
-            basis=key_umap,                 # <- custom basis lives in .obsm[key_umap]
+            basis=key_umap,
             color=cell_type_classification_key,
-            legend_loc="right margin",
+            legend_loc=None,
             frameon=True,
             legend_fontsize=10,
             show=False,
         )
         plt.title(f"UMAP by {cell_type_classification_key} – {name}")
         plt.tight_layout(rect=[0, 0, 1, 0.95])
-
-        out_path = f"{args.fig_dir}/umap_{cell_type_classification_key}_{name}.png"
+        out_path = f"{args.fig_dir}/umap_sqr_{cell_type_classification_key}_{name}.png"
+        wandb.log({f"umap_sqr/{cell_type_classification_key}_{name}": wandb.Image(out_path)})
         plt.savefig(out_path, dpi=300, bbox_inches="tight")
-        wandb.log({f"umap_{cell_type_classification_key}_{name}": wandb.Image(out_path)})
         plt.close()
 
+
+# One legend per obs column, using the joint UMAP
+legend_columns = [umap_color_key]
+if cell_type_classification_key != umap_color_key:
+    legend_columns.append(cell_type_classification_key)
+
+for col in legend_columns:
+    plt.figure(figsize=(10, 6))  # size not critical
+    sc.pl.embedding(
+        mdata["rna"],
+        basis="X_umap_joint",
+        color=col,
+        legend_loc="right margin",
+        frameon=True,
+        legend_fontsize=10,
+        show=False,
+    )
+    plt.title(f"Legend for {col} on joint UMAP")
+    plt.tight_layout()
+    out_path = f"{args.fig_dir}/legend_{col}_joint.png"
+    plt.savefig(out_path, dpi=300, bbox_inches="tight")
+    wandb.log({f"umap_legend/{col}_joint": wandb.Image(out_path)})
+    plt.close()
 
 
 print("All UMAP embeddings complete.")
@@ -345,12 +349,12 @@ for name in ["joint", "expression", "splicing"]:
     excl_multi_records.append({"space": name, "category": "Multiple cell types", "count": int(n_multi)})
 
 
-    plt.figure(figsize=(13, 6))
+    plt.figure(figsize=(6, 6))
     sc.pl.embedding(
         mdata["rna"],
         basis="X_umap_joint",
         color=leiden_key,
-        legend_loc="right margin",
+        legend_loc=None,
         frameon=True,
         show=False,
     )
@@ -485,10 +489,15 @@ for a, b in pairs:
 
     # Aggregate by "tissue | cell_type" if tissue exists, else by cell_type
     if "tissue" in mdata["rna"].obs:
-        labels_tissue = mdata["rna"].obs["tissue"].astype(str).values
-        pair_label = np.char.add(np.char.add(labels_tissue, " | "), labels_ct)
+        pair_label = (
+            mdata["rna"].obs["tissue"].astype("string").fillna("NA")
+            .str.cat(mdata["rna"].obs[cell_type_col].astype("string").fillna("NA"), sep=" | ")
+            .to_numpy()
+        )
     else:
-        pair_label = labels_ct.copy()
+        pair_label = (
+            mdata["rna"].obs[cell_type_col].astype("string").fillna("NA").to_numpy()
+        )
 
     df_tmp = (
         pd.DataFrame({"pair_label": pair_label, "overlap": overlap})
@@ -534,141 +543,123 @@ del heat_records, heat_pivot, heat_df
 gc.collect()
 
 
-import gc
-import numpy as np
-from sklearn.neighbors import NearestNeighbors
+# import gc
+# import numpy as np
+# from sklearn.neighbors import NearestNeighbors
 
-print("Computing expression↔︎splicing k-NN overlap on training data…")
-# ------------------------------
-# 9c. Extended kNN overlap for multiple k and space pairs
-# ------------------------------
-print("Computing extended kNN overlap for multiple k and space pairs…")
+# print("Computing expression↔︎splicing k-NN overlap on training data…")
+# # ------------------------------
+# # 9c. Extended kNN overlap for multiple k and space pairs
+# # ------------------------------
+# print("Computing extended kNN overlap for multiple k and space pairs…")
 
-# Use the latent spaces you already computed
-Z_joint = latent_spaces["joint"]
-Z_expr  = latent_spaces["expression"]
-Z_sp    = latent_spaces["splicing"]
+# # Use the latent spaces you already computed
+# Z_joint = latent_spaces["joint"]
+# Z_expr  = latent_spaces["expression"]
+# Z_sp    = latent_spaces["splicing"]
 
-pairs_knn = [
-    ("expression", Z_expr, "joint", Z_joint),
-    ("splicing",   Z_sp,   "joint", Z_joint),
-]
+# pairs_knn = [
+#     ("expression", Z_expr, "joint", Z_joint),
+#     ("splicing",   Z_sp,   "joint", Z_joint),
+# ]
 
-from sklearn.neighbors import NearestNeighbors
-import numpy as np
-import gc
-import matplotlib.pyplot as plt
-import scanpy as sc
+# from sklearn.neighbors import NearestNeighbors
+# import numpy as np
+# import gc
+# import matplotlib.pyplot as plt
+# import scanpy as sc
 
-# Normalize/validate ks
-ks = NN_OVERLAPS_KS
-kmax = max(ks)
-n = Z_joint.shape[0]
+# # Normalize/validate ks
+# ks = NN_OVERLAPS_KS
+# kmax = max(ks)
+# n = Z_joint.shape[0]
 
-def knn_indices(Z, k):
-    nn = NearestNeighbors(n_neighbors=min(k+1, n), metric="euclidean", n_jobs=-1)
-    nn.fit(Z)
-    return nn.kneighbors(Z, return_distance=False)
+# def knn_indices(Z, k):
+#     nn = NearestNeighbors(n_neighbors=min(k+1, n), metric="euclidean", n_jobs=-1)
+#     nn.fit(Z)
+#     return nn.kneighbors(Z, return_distance=False)
 
-def strip_self(idx_full, k):
-    # drop potential self neighbor (first column) or trim to k
-    if idx_full.shape[1] > 0:
-        out = idx_full[:, 1:] if idx_full.shape[1] > k else idx_full[:, :k]
-    else:
-        out = idx_full
-    if out.dtype != np.int32:
-        out = out.astype(np.int32, copy=False)
-    return out
+# def strip_self(idx_full, k):
+#     # drop potential self neighbor (first column) or trim to k
+#     if idx_full.shape[1] > 0:
+#         out = idx_full[:, 1:] if idx_full.shape[1] > k else idx_full[:, :k]
+#     else:
+#         out = idx_full
+#     if out.dtype != np.int32:
+#         out = out.astype(np.int32, copy=False)
+#     return out
 
-# Precompute neighbor indices once at kmax+1 for each space
-idx_cache = {}
-for name, Z in [("expression", Z_expr), ("splicing", Z_sp), ("joint", Z_joint)]:
-    idx = knn_indices(Z, kmax)  # shape n x (kmax+1)
-    idx_cache[name] = idx.astype(np.int32, copy=False)
+# # Precompute neighbor indices once at kmax+1 for each space
+# idx_cache = {}
+# for name, Z in [("expression", Z_expr), ("splicing", Z_sp), ("joint", Z_joint)]:
+#     idx = knn_indices(Z, kmax)  # shape n x (kmax+1)
+#     idx_cache[name] = idx.astype(np.int32, copy=False)
 
-# For each pair and each k, compute overlap counts, attach to obs, log stats, and plot UMAPs
-for a_name, Za, b_name, Zb in pairs_knn:
-    idx_a_full = idx_cache[a_name]
-    idx_b_full = idx_cache[b_name]
+# # For each pair and each k, compute overlap counts, attach to obs, log stats, and plot UMAPs
+# for a_name, Za, b_name, Zb in pairs_knn:
+#     idx_a_full = idx_cache[a_name]
+#     idx_b_full = idx_cache[b_name]
 
-    for k in ks:
-        # slice to current k and drop self
-        idx_a = strip_self(idx_a_full[:, :min(k+1, idx_a_full.shape[1])], k)
-        idx_b = strip_self(idx_b_full[:, :min(k+1, idx_b_full.shape[1])], k)
+#     for k in ks:
+#         # slice to current k and drop self
+#         idx_a = strip_self(idx_a_full[:, :min(k+1, idx_a_full.shape[1])], k)
+#         idx_b = strip_self(idx_b_full[:, :min(k+1, idx_b_full.shape[1])], k)
 
-        # Per-cell overlap size divided by k
-        overlap_frac = np.empty(n, dtype=np.float32)
-        for i in range(n):
-            a = idx_a[i]
-            b = idx_b[i]
-            if a.size == 0:
-                overlap_frac[i] = np.nan
-                continue
-            inter_sz = np.intersect1d(a, b, assume_unique=False).size
-            overlap_frac[i] = inter_sz / float(min(k, a.size))
+#         # Per-cell overlap size divided by k
+#         overlap_frac = np.empty(n, dtype=np.float32)
+#         for i in range(n):
+#             a = idx_a[i]
+#             b = idx_b[i]
+#             if a.size == 0:
+#                 overlap_frac[i] = np.nan
+#                 continue
+#             inter_sz = np.intersect1d(a, b, assume_unique=False).size
+#             overlap_frac[i] = inter_sz / float(min(k, a.size))
 
-        # Attach and summarize
-        key_obs = f"nn_overlap_{a_name}_vs_{b_name}_k{k}_pct"
-        mdata["rna"].obs[key_obs] = (100.0 * overlap_frac).astype(np.float32, copy=False)
+#         # Attach and summarize
+#         key_obs = f"nn_overlap_{a_name}_vs_{b_name}_k{k}_pct"
+#         mdata["rna"].obs[key_obs] = (100.0 * overlap_frac).astype(np.float32, copy=False)
 
-        vals = mdata["rna"].obs[key_obs].values
-        mean_pct   = float(np.nanmean(vals))
-        median_pct = float(np.nanmedian(vals))
-        p10        = float(np.nanquantile(vals, 0.10))
-        p90        = float(np.nanquantile(vals, 0.90))
+#         vals = mdata["rna"].obs[key_obs].values
+#         mean_pct   = float(np.nanmean(vals))
+#         median_pct = float(np.nanmedian(vals))
+#         p10        = float(np.nanquantile(vals, 0.10))
+#         p90        = float(np.nanquantile(vals, 0.90))
 
-        wandb.log({
-            f"knn-extended/{a_name}_vs_{b_name}_k{k}_mean_pct": mean_pct,
-            f"knn-extended/{a_name}_vs_{b_name}_k{k}_median_pct": median_pct,
-            f"knn-extended/{a_name}_vs_{b_name}_k{k}_p10_pct": p10,
-            f"knn-extended/{a_name}_vs_{b_name}_k{k}_p90_pct": p90,
-        })
+#         wandb.log({
+#             f"knn-extended/{a_name}_vs_{b_name}_k{k}_mean_pct": mean_pct,
+#             f"knn-extended/{a_name}_vs_{b_name}_k{k}_median_pct": median_pct,
+#             f"knn-extended/{a_name}_vs_{b_name}_k{k}_p10_pct": p10,
+#             f"knn-extended/{a_name}_vs_{b_name}_k{k}_p90_pct": p90,
+#         })
 
-        # Joint-UMAP overlays (wide + square), colored by current pairwise overlap metric
-        if "X_umap_joint" in mdata["rna"].obsm_keys():
-            # Wide
-            plt.figure(figsize=(13, 6))
-            sc.pl.embedding(
-                mdata["rna"],
-                basis="X_umap_joint",
-                color=key_obs,
-                legend_loc=None,
-                frameon=True,
-                color_map="viridis",
-                show=False,
-            )
-            plt.title(f"Joint UMAP — {a_name}↔{b_name} k={k} overlap (%)")
-            plt.tight_layout(rect=[0, 0, 1, 0.95])
-            out_path = f"{args.fig_dir}/umap_joint_{a_name}_vs_{b_name}_k{k}.png"
-            plt.savefig(out_path, dpi=300, bbox_inches="tight")
-            wandb.log({f"knn-extended/umap_joint_{a_name}_vs_{b_name}_k{k}": wandb.Image(out_path)})
-            plt.close()
+#         # Joint-UMAP overlays (wide + square), colored by current pairwise overlap metric
+#         if "X_umap_joint" in mdata["rna"].obsm_keys():
+#             # Wide
+#             plt.figure(figsize=(13, 6))
+#             sc.pl.embedding(
+#                 mdata["rna"],
+#                 basis="X_umap_joint",
+#                 color=key_obs,
+#                 legend_loc=None,
+#                 frameon=True,
+#                 color_map="viridis",
+#                 show=False,
+#             )
+#             plt.title(f"Joint UMAP — {a_name}↔{b_name} k={k} overlap (%)")
+#             plt.tight_layout(rect=[0, 0, 1, 0.95])
+#             out_path = f"{args.fig_dir}/umap_joint_{a_name}_vs_{b_name}_k{k}.png"
+#             plt.savefig(out_path, dpi=300, bbox_inches="tight")
+#             wandb.log({f"knn-extended/umap_joint_{a_name}_vs_{b_name}_k{k}": wandb.Image(out_path)})
+#             plt.close()
 
-            # Square
-            plt.figure(figsize=(6, 6))
-            sc.pl.embedding(
-                mdata["rna"],
-                basis="X_umap_joint",
-                color=key_obs,
-                legend_loc=None,
-                frameon=True,
-                color_map="viridis",
-                show=False,
-            )
-            plt.title(f"Joint UMAP — {a_name}↔{b_name} k={k} overlap (%)")
-            plt.tight_layout(rect=[0, 0, 1, 0.95])
-            out_path = f"{args.fig_dir}/umap_sqr_joint_{a_name}_vs_{b_name}_k{k}.png"
-            plt.savefig(out_path, dpi=300, bbox_inches="tight")
-            wandb.log({f"knn-extended/umap_sqr_joint_{a_name}_vs_{b_name}_k{k}": wandb.Image(out_path)})
-            plt.close()
+#         # Clean up per-k temporaries
+#         del overlap_frac
+#         gc.collect()
 
-        # Clean up per-k temporaries
-        del overlap_frac
-        gc.collect()
-
-# Free large neighbor caches
-del idx_cache
-gc.collect()
+# # Free large neighbor caches
+# del idx_cache
+# gc.collect()
 
 
 # ------------------------------
@@ -728,45 +719,74 @@ def evaluate_split(name: str, mdata, mask_coords=None, Z_type="joint"):
     from sklearn.preprocessing import StandardScaler
 
     if "age_numeric" in mdata.obs:
-        ages = mdata.obs["age_numeric"].astype(float).values
-        X_latent = StandardScaler().fit_transform(Z)
-        X_tr, X_ev, y_tr, y_ev = train_test_split(X_latent, ages, test_size=0.2, random_state=0)
-        ridge = RidgeCV(alphas=np.logspace(-2, 3, 20), cv=5).fit(X_tr, y_tr)
-        r2_age = ridge.score(X_ev, y_ev)
-        wandb.log({f"real-{name}-{Z_type}/age_r2": r2_age})
+        # Build mask for target ages
+        ages_full = mdata.obs["age_numeric"].astype(float).values
+        target_ages = np.array([3.0, 18.0, 24.0], dtype=float)
+        mask_age = np.isin(ages_full, target_ages)
 
-        # Age regression per (tissue, cell_type) pairing
-        if "tissue" in mdata.obs:
-            tissue_series = mdata.obs["tissue"].astype(str)
-            ct_series = mdata.obs[cell_type_classification_key].astype(str)
-            pair = tissue_series + " | " + ct_series
-            pair_unique = pair.unique()
+        n_kept = int(mask_age.sum())
+        if n_kept < MIN_GROUP_N:
+            print(f"[{name}-{Z_type}] Only {n_kept} cells with target ages {target_ages.tolist()}; skipping age tasks.")
+        else:
+            # Subset to target ages
+            ages = ages_full[mask_age]
+            Z_use = Z[mask_age, :]
+            obs_local = mdata.obs.iloc[np.where(mask_age)[0]].copy()
 
-            for p in pair_unique:
-                idx = np.where(pair.values == p)[0]
-                if idx.size < MIN_GROUP_N:
-                    continue
-                # prepare group data
-                Zg = X_latent[idx]
-                yg = ages[idx]
-                # skip degenerate variance
-                if np.std(yg) == 0.0:
-                    continue
-                Ztr, Zev, ytr, yev = train_test_split(Zg, yg, test_size=0.2, random_state=0)
-                try:
-                    rg = RidgeCV(alphas=np.logspace(-2, 3, 20), cv=5).fit(Ztr, ytr)
-                    r2g = rg.score(Zev, yev)
-                except Exception:
-                    continue
-                AGE_R2_RECORDS.append({
-                    "dataset": name,          # "train" or "test"
-                    "space": Z_type,          # "joint","expression","splicing"
-                    "pair": p,                # "tissue | celltype"
-                    "tissue": p.split(" | ", 1)[0],
-                    "cell_type": p.split(" | ", 1)[1],
-                    "r2": float(r2g),
-                    "n": int(idx.size),
+            # Global age regression
+            X_latent = StandardScaler().fit_transform(Z_use)
+            X_tr, X_ev, y_tr, y_ev = train_test_split(X_latent, ages, test_size=0.2, random_state=0)
+
+            # Guard against degenerate target variance
+            if np.std(y_tr) == 0.0 or np.std(y_ev) == 0.0:
+                print(f"[{name}-{Z_type}] Degenerate age variance after filtering; skipping global age R².")
+            else:
+                ridge = RidgeCV(alphas=np.logspace(-2, 3, 20), cv=5).fit(X_tr, y_tr)
+                r2_age = ridge.score(X_ev, y_ev)
+                wandb.log({
+                    f"real-{name}-{Z_type}/age_r2": r2_age,
+                    f"real-{name}-{Z_type}/age_n_cells": n_kept
                 })
+
+            # Per (tissue | cell_type) R² and counts
+            if "tissue" in obs_local:
+                tissue_series = obs_local["tissue"].astype(str)
+                ct_series = obs_local[cell_type_classification_key].astype(str)
+                pair = tissue_series + " | " + ct_series
+                pair_unique = pair.unique()
+
+                for p in pair_unique:
+                    idx = np.where(pair.values == p)[0]
+                    if idx.size < MIN_GROUP_N:
+                        continue
+
+                    Zg = X_latent[idx]
+                    yg = ages[idx]
+
+                    # Skip if no variance in age within this group
+                    if np.std(yg) == 0.0:
+                        continue
+
+                    Ztr, Zev, ytr, yev = train_test_split(Zg, yg, test_size=0.2, random_state=0)
+                    # Protect small splits
+                    if Ztr.shape[0] < 2 or Zev.shape[0] < 2 or np.std(ytr) == 0.0 or np.std(yev) == 0.0:
+                        continue
+
+                    try:
+                        rg = RidgeCV(alphas=np.logspace(-2, 3, 20), cv=5).fit(Ztr, ytr)
+                        r2g = rg.score(Zev, yev)
+                    except Exception:
+                        continue
+
+                    AGE_R2_RECORDS.append({
+                        "dataset": name,                 # "train" or "test"
+                        "space": Z_type,                 # "joint","expression","splicing"
+                        "pair": p,                       # "tissue | celltype"
+                        "tissue": p.split(" | ", 1)[0],
+                        "cell_type": p.split(" | ", 1)[1],
+                        "r2": float(r2g),
+                        "n": int(idx.size),              # count after age filter
+                    })
 
 
 # run evaluation on training data
@@ -828,101 +848,114 @@ else:
 
 
 # ------------------------------
-# 11. TEST split + masked‐ATSE imputation
+# 11. TEST split + masked‐ATSE imputation across many masked files
 # ------------------------------
 del mdata
 torch.cuda.empty_cache()
 
-print(f"\n=== Masked-ATSE imputation on TEST using {args.masked_test_mdata_path} ===")
-MASK_FRACTION = 0.2  # fraction of ATSEs to mask
-mdata = mu.read_h5mu(args.masked_test_mdata_path, backed = "r")
-ad_masked = mdata["splicing"]
+import re
 
-print(f"Setting up SpliceVI PartialVAE… ")
-scvi.model.MULTIVISPLICE.setup_mudata(
-    mdata,
-    batch_key = None,
-    size_factor_key="X_library_size",
-    rna_layer="length_norm",
-    junc_ratio_layer=x_layer,
-    atse_counts_layer=cluster_counts_layer,
-    junc_counts_layer=junction_counts_layer,
-    psi_mask_layer=mask_layer,
-    modalities={"rna_layer": "rna", "junc_ratio_layer": "splicing"},
-)
-
-from scipy import sparse
-
-# 6) run imputation in cell-index batches using args.batch_size
-print("Step 6: running batched imputation and computing correlations")
-
-model.module.eval()
-
-# Ensure CSR for fast row slicing
-masked_orig = ad_masked.layers["junc_ratio_masked_original"]
-if not sparse.isspmatrix_csr(masked_orig):
-    masked_orig = sparse.csr_matrix(masked_orig)
-
-bin_mask = ad_masked.layers["junc_ratio_masked_bin_mask"]
-if not sparse.isspmatrix_csr(bin_mask):
-    bin_mask = sparse.csr_matrix(bin_mask)
-
-n_cells = bin_mask.shape[0]
-bs = int(args.batch_size) if getattr(args, "batch_size", None) else 512
-assert bs > 0, "batch_size must be positive"
-
-orig_all = []
-pred_all = []
-pairs_total = 0
-
-for start in range(0, n_cells, bs):
-    stop = min(start + bs, n_cells)
-    # find masked positions for these rows only
-    submask = bin_mask[start:stop]                # CSR
-    sub_r, sub_c = submask.nonzero()             # local rows, global cols
-    if sub_r.size == 0:
-        continue
-
-    # decode only these cells, using your existing batch_size for internal minibatching too
-    idx = np.arange(start, stop, dtype=np.int64)
-    with torch.inference_mode():
-        decoded_batch = model.get_normalized_splicing(
-            adata=mdata,
-            indices=idx,
-            return_numpy=True,
-            batch_size=bs,          # use args.batch_size here
-        )                           # shape: (stop-start, n_junc)
-
-    # ground truth at masked positions
-    orig_vals_b = masked_orig[start:stop][:, sub_c][sub_r, np.arange(sub_r.size)].A1
-    # predictions at same positions
-    pred_vals_b = decoded_batch[sub_r, sub_c]
-
-    orig_all.append(orig_vals_b.astype(np.float32, copy=False))
-    pred_all.append(pred_vals_b.astype(np.float32, copy=False))
-    pairs_total += orig_vals_b.size
-
-    # free batch ASAP
-    del decoded_batch
-    torch.cuda.empty_cache()
-
-if pairs_total == 0:
-    print("[impute-test] No masked entries found; skipping correlation.")
+if not args.masked_test_mdata_paths:
+    print("\n[impute-test] No masked_test_mdata_paths provided. Skipping masked imputation.")
 else:
-    orig_all = np.concatenate(orig_all, dtype=np.float32)
-    pred_all = np.concatenate(pred_all, dtype=np.float32)
+    for masked_path in args.masked_test_mdata_paths:
+        # Try to extract a clean tag like "25", "50", "75" from the filename
+        # Fallback to a safe slug if not found
+        fname = os.path.basename(masked_path)
+        m = re.search(r'(\d+)\s*%|MASKED[_-]?(\d+)', fname, flags=re.IGNORECASE)
+        if m:
+            pct = m.group(1) or m.group(2)
+            tag = f"{pct}pct"
+        else:
+            tag = re.sub(r"[^A-Za-z0-9]+", "_", os.path.splitext(fname)[0])[:40]
 
-    pearson_m  = float(np.corrcoef(orig_all, pred_all)[0, 1])
-    from scipy.stats import spearmanr
-    spearman_m = float(spearmanr(orig_all, pred_all, nan_policy="omit")[0])
+        print(f"\n=== Masked-ATSE imputation on TEST using {masked_path} ({tag}) ===")
+        mdata = mu.read_h5mu(masked_path, backed="r")
+        ad_masked = mdata["splicing"]
 
-    print(f"[impute-test] masked-ATSE PSI corr — Pearson: {pearson_m:.4f}, Spearman: {spearman_m:.4f}  (n={pairs_total})")
-    wandb.log({
-        "impute-test/psi_pearson_corr_masked_atse": pearson_m,
-        "impute-test/psi_spearman_corr_masked_atse": spearman_m,
-        "impute-test/n_masked_entries": int(pairs_total),
-        "impute-test/batch_size_imputation": bs,
-    })
+        print(f"Setting up SpliceVI PartialVAE… ")
+        scvi.model.MULTIVISPLICE.setup_mudata(
+            mdata,
+            batch_key=None,
+            size_factor_key="X_library_size",
+            rna_layer="length_norm",
+            junc_ratio_layer=x_layer,
+            atse_counts_layer=cluster_counts_layer,
+            junc_counts_layer=junction_counts_layer,
+            psi_mask_layer=mask_layer,
+            modalities={"rna_layer": "rna", "junc_ratio_layer": "splicing"},
+        )
+
+        from scipy import sparse
+
+        print("Step 6: running batched imputation and computing correlations")
+        model.module.eval()
+
+        # Ensure CSR for fast row slicing
+        masked_orig = ad_masked.layers["junc_ratio_masked_original"]
+        if not sparse.isspmatrix_csr(masked_orig):
+            masked_orig = sparse.csr_matrix(masked_orig)
+
+        bin_mask = ad_masked.layers["junc_ratio_masked_bin_mask"]
+        if not sparse.isspmatrix_csr(bin_mask):
+            bin_mask = sparse.csr_matrix(bin_mask)
+
+        n_cells = bin_mask.shape[0]
+        bs = int(args.batch_size) if getattr(args, "batch_size", None) else 512
+        assert bs > 0, "batch_size must be positive"
+
+        orig_all, pred_all = [], []
+        pairs_total = 0
+
+        for start in range(0, n_cells, bs):
+            stop = min(start + bs, n_cells)
+            submask = bin_mask[start:stop]
+            sub_r, sub_c = submask.nonzero()
+            if sub_r.size == 0:
+                continue
+
+            idx = np.arange(start, stop, dtype=np.int64)
+            with torch.inference_mode():
+                decoded_batch = model.get_normalized_splicing(
+                    adata=mdata,
+                    indices=idx,
+                    return_numpy=True,
+                    batch_size=bs,
+                )
+
+            orig_vals_b = masked_orig[start:stop][:, sub_c][sub_r, np.arange(sub_r.size)].A1
+            pred_vals_b = decoded_batch[sub_r, sub_c]
+
+            orig_all.append(orig_vals_b.astype(np.float32, copy=False))
+            pred_all.append(pred_vals_b.astype(np.float32, copy=False))
+            pairs_total += orig_vals_b.size
+
+            del decoded_batch
+            torch.cuda.empty_cache()
+
+        if pairs_total == 0:
+            print(f"[impute-test/{tag}] No masked entries found; skipping correlation.")
+        else:
+            orig_all = np.concatenate(orig_all, dtype=np.float32)
+            pred_all = np.concatenate(pred_all, dtype=np.float32)
+
+            pearson_m  = float(np.corrcoef(orig_all, pred_all)[0, 1])
+            from scipy.stats import spearmanr
+            spearman_m = float(spearmanr(orig_all, pred_all, nan_policy="omit")[0])
+
+            print(f"[impute-test/{tag}] PSI corr — Pearson: {pearson_m:.4f}, Spearman: {spearman_m:.4f}  (n={pairs_total})")
+            wandb.log({
+                f"impute-test/{tag}/psi_pearson_corr_masked_atse": pearson_m,
+                f"impute-test/{tag}/psi_spearman_corr_masked_atse": spearman_m,
+                f"impute-test/{tag}/n_masked_entries": int(pairs_total),
+                f"impute-test/{tag}/batch_size_imputation": bs,
+                f"impute-test/{tag}/masked_file": masked_path,
+            })
+
+        # cleanup this masked file before the next
+        del mdata, ad_masked, masked_orig, bin_mask, orig_all, pred_all
+        gc.collect()
+        torch.cuda.empty_cache()
 
 
 
