@@ -3,9 +3,8 @@
 #SBATCH --output=logs/subcluster_%j.out
 #SBATCH --error=logs/subcluster_%j.err
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:1            
-#SBATCH --cpus-per-task=8         
-#SBATCH --mem=200G               
+#SBATCH --gres=gpu:1                  
+#SBATCH --mem=300G               
 #SBATCH --time=24:00:00
 
 set -euo pipefail
@@ -20,23 +19,24 @@ conda activate "${ENV_NAME}"
 # 2) Paths
 PY="/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/multivi_splice_utils/runfiles/subcluster_diff_splicing_analysis.py"
 
-MODEL_DIR="/gpfs/commons/home/svaidyanathan/splice_vi_partial_vae_sweep/batch_20251020_102953/mouse_trainandtest_REAL_cd=32_mn=50000_ld=25_lr=1e-5_0_scatter_PartialEncoderEDDI_pool=sum/models"
-MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/train_70_30_ge_splice_combined_20250730_164104.h5mu"
+MODEL_DIR="/gpfs/commons/home/svaidyanathan/splice_vi_partial_vae_sweep/batch_20251030_220141/mouse_trainandtest_REAL_cd=32_mn=50000_ld=25_lr=1e-5_0_scatter_PartialEncoderEDDI_pool=sum/models"
+MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/102025/train_70_30_model_ready_combined_gene_expression_aligned_splicing_20251009_024406.h5mu"
 BASE_OUTDIR="/gpfs/commons/home/svaidyanathan/analysis/subcluster_outputs"
 
 # 3) Analysis knobs
-LEIDEN_RES=1.2
+LEIDEN_RES=0.5
 PREFERRED_CTYPE="medium_cell_type"
 FALLBACK_CTYPE="broad_cell_type"
 TARGET_CELLTYPE="Cortical excitatory neuron"
 # Space separated list. Leave empty to ignore tissue filter.
 TARGET_TISSUES=()
+NORM_SPLICING_FUNCTION="dm_posterior_mean"
 
 DE_DELTA=0.25        # for differential expression
 DS_DELTA=0.10        # for differential splicing PSI
 FDR=0.05
-BATCH_SIZE_POST=512
-RUN_TSNE=1           # set 0 to skip tSNE
+BATCH_SIZE_POST=256
+RUN_TSNE=0           # set 0 to skip tSNE
 
 # Layers if you need to override defaults
 X_LAYER="junc_ratio"
@@ -61,6 +61,7 @@ CMD=(python "$PY"
   --fdr "$FDR"
   --batch_size_post "$BATCH_SIZE_POST"
   --x_layer "$X_LAYER"
+  --norm_splicing_function "$NORM_SPLICING_FUNCTION"
   --junction_counts_layer "$JUNC_COUNTS_LAYER"
   --cluster_counts_layer "$CLUST_COUNTS_LAYER"
   --mask_layer "$MASK_LAYER"

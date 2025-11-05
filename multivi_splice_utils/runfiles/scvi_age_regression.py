@@ -60,7 +60,7 @@ os.makedirs(args.model_dir, exist_ok=True)
 # Weights & Biases
 # ------------------------------
 wandb.init(project="MLCB_SUBMISSION", name=args.run_name, config=dict(
-    model="SCVI",
+    model="LinearSCVI",
     max_epochs=MAX_EPOCHS,
     lr=LR,
     batch_size=BATCH_SIZE,
@@ -89,7 +89,7 @@ if SIZE_FACTOR_KEY in mdata_tr.obsm_keys():
 # SCVI anndata setup (TRAIN)
 # ------------------------------
 print("Setting up AnnData for SCVI (TRAIN)…")
-scvi.model.SCVI.setup_anndata(
+scvi.model.SCVI_Linear.setup_anndata(
     ad_tr,
     layer=RNA_LAYER,
     batch_key=None,
@@ -100,7 +100,7 @@ scvi.model.SCVI.setup_anndata(
 # Build & Train SCVI
 # ------------------------------
 print("Initializing SCVI…")
-model = scvi.model.SCVI(ad_tr, n_latent=N_LATENT)
+model = scvi.model.SCVI_Linear(ad_tr, n_latent=N_LATENT)
 
 # Log parameter count
 total_params = sum(p.numel() for p in model.module.parameters())
@@ -249,7 +249,7 @@ if SIZE_FACTOR_KEY in mdata_te.obsm_keys():
     ad_te.obs[SIZE_FACTOR_KEY] = mdata_te.obsm[SIZE_FACTOR_KEY]
 
 print("Loading model")
-model = scvi.model.SCVI.load(args.model_dir, ad_te)
+model = scvi.model.SCVI_Linear.load(args.model_dir, ad_te)
 
 print("Evaluating metrics on TEST…")
 evaluate_split_scvi(model, ad_te, "test")

@@ -12,6 +12,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from pyro.distributions import DirichletMultinomial, Gamma
 from scipy import sparse as sp_sparse
+import scvi, sys
 from scvi.dataset.dataset import GeneExpressionDataset, compute_library_size
 from scvi.inference import Posterior as scVIPosterior
 from scvi.inference import UnsupervisedTrainer as UnsupervisedTrainer_scVI
@@ -21,7 +22,7 @@ from scvi.models.utils import one_hot
 from torch.distributions import Dirichlet, Laplace, Multinomial, Normal
 from torch.distributions import kl_divergence as kl
 
-from ..data import relabel
+from data import relabel
 
 
 class Dataset(GeneExpressionDataset):

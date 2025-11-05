@@ -256,8 +256,8 @@ for name, Z in latent_spaces.items():
         plt.title(f"UMAP by {cell_type_classification_key} – {name}")
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         out_path = f"{args.fig_dir}/umap_sqr_{cell_type_classification_key}_{name}.png"
-        wandb.log({f"umap_sqr/{cell_type_classification_key}_{name}": wandb.Image(out_path)})
         plt.savefig(out_path, dpi=300, bbox_inches="tight")
+        wandb.log({f"umap_sqr/{cell_type_classification_key}_{name}": wandb.Image(out_path)})
         plt.close()
 
 
@@ -720,11 +720,11 @@ def evaluate_split(name: str, mdata, mask_coords=None, Z_type="joint"):
 
     if "age_numeric" in mdata.obs:
         # Build mask for target ages
-        ages_full = mdata.obs["age_numeric"].astype(float).values
-        target_ages = np.array([3.0, 18.0, 24.0], dtype=float)
+        ages_full = mdata.obs["age_numeric"].astype(float).values 
+        target_ages = np.array([3.0, 18.0, 24.0], dtype=float) 
         mask_age = np.isin(ages_full, target_ages)
-
         n_kept = int(mask_age.sum())
+        print(f"Kept {n_kept}/{len(mask_age)} cells")
         if n_kept < MIN_GROUP_N:
             print(f"[{name}-{Z_type}] Only {n_kept} cells with target ages {target_ages.tolist()}; skipping age tasks.")
         else:
