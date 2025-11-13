@@ -9,13 +9,13 @@
 # MASKED_TEST_MDATA_PATHS="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/072025/MASKED_0.2_test_30_70_ge_splice_combined_20250730_164104.h5mu"
 TRAIN_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/102025/train_70_30_model_ready_combined_gene_expression_aligned_splicing_20251009_024406.h5mu"
 TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/102025/test_30_70_model_ready_combined_gene_expression_aligned_splicing_20251009_024406.h5mu"
-# MASKED_TEST_MDATA_PATHS="\
-# /gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/102025/MASKED_25_PERCENT_test_30_70_model_ready_combined_gene_expression_aligned_splicing_20251009_024406.h5mu \
-# /gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/102025/MASKED_50_PERCENT_test_30_70_model_ready_combined_gene_expression_aligned_splicing_20251009_024406.h5mu \
-# /gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/102025/MASKED_75_PERCENT_test_30_70_model_ready_combined_gene_expression_aligned_splicing_20251009_024406.h5mu"
-
 MASKED_TEST_MDATA_PATHS="\
-/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/102025/MASKED_25_PERCENT_test_30_70_model_ready_combined_gene_expression_aligned_splicing_20251009_024406.h5mu"
+/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/102025/MASKED_25_PERCENT_test_30_70_model_ready_combined_gene_expression_aligned_splicing_20251009_024406.h5mu \
+/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/102025/MASKED_50_PERCENT_test_30_70_model_ready_combined_gene_expression_aligned_splicing_20251009_024406.h5mu \
+/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/102025/MASKED_75_PERCENT_test_30_70_model_ready_combined_gene_expression_aligned_splicing_20251009_024406.h5mu"
+
+# MASKED_TEST_MDATA_PATHS="\
+# /gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/102025/MASKED_25_PERCENT_test_30_70_model_ready_combined_gene_expression_aligned_splicing_20251009_024406.h5mu"
 
 
 # TRAIN_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/HUMAN_SPLICING_FOUNDATION/MODEL_INPUT/072025/train_70_30_ge_splicing_data_20250731_212313.h5mu"
@@ -48,15 +48,15 @@ H_HIDDEN_DIM=64
 ATSE_EMBEDDING_DIMENSION=16
 TEMPERATURE_VALUE=-1.0
 TEMPERATURE_FIXED=true
-# POOL_MODE="sum"                                # options: mean | sum (you already sweep this paired with ENCODER_TYPE)
+# POOL_MODE="mean"                                # options: mean | sum (you already sweep this paired with ENCODER_TYPE)
 
 # TRAIN knobs (non-sweep)
 WEIGHT_DECAY=1e-3
 EARLY_STOPPING_PATIENCE=50
 LR_SCHEDULER_TYPE="plateau"                    # options: plateau | step
-LR_FACTOR=0.6
+LR_FACTOR=0.5
 LR_PATIENCE=30
-STEP_SIZE=10
+STEP_SIZE=100
 GRADIENT_CLIPPING=true
 GRADIENT_CLIPPING_MAX_NORM=5.0
 
@@ -164,20 +164,14 @@ echo "→ Job template written. Submitting sweep jobs..."
 
 # 2) Define sweep configurations
 ENCODER_TYPES=(
-  # "PartialEncoderWeightedSumEDDIMultiWeight"
   "PartialEncoderEDDI"
-  # # "PartialEncoderEDDIATSE"
-  # "PartialEncoderEDDI"
-  # # # "PartialEncoderEDDIATSE"
-  # "PartialEncoderWeightedSumEDDIMultiWeightATSE"
+  "PartialEncoderEDDI"
+  "PartialEncoderEDDI"
 )
 POOL_MODES=(
-  # ""
-  "sum"
-  # # "sum"
-  # "mean"
-  # # # "mean"
-  # ""
+  "mean"
+  "mean"
+  "mean"
 )
 
 # 3) Loop and submit

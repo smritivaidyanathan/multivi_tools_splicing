@@ -46,16 +46,20 @@ def say(logger: logging.Logger, msg: str):
 
 
 def parse_args():
-    p = argparse.ArgumentParser("Subcluster analysis for MULTIVISPLICE")
+    p = argparse.ArgumentParser("Subcluster analysis for MULTIVISPLICE + scvi")
+    # MULTIVISPLICE model
     p.add_argument("--model_dir", required=True, help="Path to trained MULTIVISPLICE model directory")
+    # scvi model
+    p.add_argument("--scvi_model_dir", required=True, help="Path to trained scvi model directory")
+
     p.add_argument("--mudata_path", required=True, help="Input MuData .h5mu path")
     p.add_argument("--base_outdir", required=True, help="Base folder where timestamped outputs are created")
-    p.add_argument("--leiden_resolution", type=float, default=1.0, help="Leiden resolution for joint space")
+    p.add_argument("--leiden_resolution", type=float, default=1.0, help="Leiden resolution for joint space / scvi space")
     p.add_argument("--preferred_celltype_col", default="medium_cell_type", help="Preferred obs column for cell types")
     p.add_argument("--fallback_celltype_col", default="broad_cell_type", help="Fallback obs column for cell types")
     p.add_argument("--target_celltype", required=True, help="Exact label to subset, e.g. 'Cortical excitatory neuron'")
     p.add_argument("--target_tissues", nargs="*", default=[], help="Optional list of tissue names to include")
-    p.add_argument("--run_tsne", action="store_true", help="Also compute tSNE for joint space")
+    p.add_argument("--run_tsne", action="store_true", help="Also compute tSNE for joint/scvi space")
     p.add_argument("--de_delta", type=float, default=0.25, help="Delta for DE with mode=change")
     p.add_argument("--ds_delta", type=float, default=0.10, help="Delta for DS on PSI with mode=change")
     p.add_argument("--fdr", type=float, default=0.05, help="Target FDR")
@@ -65,9 +69,7 @@ def parse_args():
     p.add_argument("--junction_counts_layer", default="cell_by_junction_matrix")
     p.add_argument("--cluster_counts_layer", default="cell_by_cluster_matrix")
     p.add_argument("--mask_layer", default="psi_mask")
-    p.add_argument("--norm_splicing_function", default = "decoder")
-    p.add_argument("--model_type", choices=["splicevi", "scvi"], required=True, help="Choose which model type to run: 'splicevi' or 'scvi'")
-
+    p.add_argument("--norm_splicing_function", default="decoder")
     return p.parse_args()
 
 
@@ -77,6 +79,7 @@ def pick_celltype_key(ad_rna, preferred: str, fallback: str | None) -> str:
     if fallback and fallback in ad_rna.obs:
         return fallback
     raise ValueError("Could not find a cell type column in obs")
+
 
 def plot_junction_coverage_vs_variance(mdata, x_layer: str, junc_counts_layer: str, mask_layer: str, outdir: Path, logger: logging.Logger):
     """
@@ -115,14 +118,11 @@ def plot_junction_coverage_vs_variance(mdata, x_layer: str, junc_counts_layer: s
     # Variance of PSI across observed cells
     eps = 1e-12
     if is_sparse_X or is_sparse_M:
-        # Ensure CSR for efficient row ops then do elementwise products
         X_csr = X.tocsr() if is_sparse_X else sp.csr_matrix(X)
         M_csr = M.tocsr() if is_sparse_M else sp.csr_matrix(M)
 
-        # observed counts per junction
         n_obs = M_csr.sum(axis=0).A1  # length J
 
-        # sum of x and x^2 over observed entries
         X_masked = X_csr.multiply(M_csr)
         sum_x = X_masked.sum(axis=0).A1
         sum_x2 = X_masked.multiply(X_masked).sum(axis=0).A1
@@ -132,7 +132,6 @@ def plot_junction_coverage_vs_variance(mdata, x_layer: str, junc_counts_layer: s
         var = np.clip(var, 0.0, None)
         var[n_obs == 0] = np.nan
     else:
-        # dense
         M_bool = M.astype(bool)
         n_obs = M_bool.sum(axis=0)
         sum_x = (X * M_bool).sum(axis=0)
@@ -142,7 +141,6 @@ def plot_junction_coverage_vs_variance(mdata, x_layer: str, junc_counts_layer: s
         var = np.clip(var, 0.0, None)
         var[n_obs == 0] = np.nan
 
-    # Assemble DataFrame
     df = pd.DataFrame({
         "junction": ad_spl.var_names,
         "cells_expressed": cells_expressed.astype(int),
@@ -150,12 +148,10 @@ def plot_junction_coverage_vs_variance(mdata, x_layer: str, junc_counts_layer: s
         "n_obs_mask": n_obs.astype(int),
     }).set_index("junction")
 
-    # Save CSV
     csv_path = outdir / "junction_coverage_vs_variance.csv"
     df.to_csv(csv_path)
     say(logger, f"[qc] Wrote CSV → {csv_path}")
 
-    # Plot
     fig, ax = plt.subplots(figsize=(8, 6))
     sns.scatterplot(
         data=df,
@@ -193,7 +189,7 @@ def subset_mudata(mdata, ct_key: str, target_celltype: str, target_tissues: list
 def run_leiden_umap_joint(model, mdata, ct_key: str, target_celltype: str, target_tissues: list[str],
                           resolution: float, run_tsne: bool,
                           outdir: Path, logger: logging.Logger):
-    say(logger, "[latent] Subsetting inside Leiden function and computing joint latent")
+    say(logger, "[latent] Subsetting inside Leiden function and computing joint latent (MULTIVISPLICE)")
 
     # Build subset mask here
     ad_rna_full = mdata["rna"]
@@ -211,7 +207,7 @@ def run_leiden_umap_joint(model, mdata, ct_key: str, target_celltype: str, targe
     m_ct = mdata[mask_ct].copy()
     ad_rna = m_ct["rna"]
 
-    # Joint latent for the subset only
+    # Joint latent for the subset only (MULTIVISPLICE joint)
     Z_joint_full = model.get_latent_representation(modality="joint")
     Z_subset = Z_joint_full[mask_ct]
     ad_rna.obsm["X_latent_joint"] = Z_subset
@@ -232,10 +228,10 @@ def run_leiden_umap_joint(model, mdata, ct_key: str, target_celltype: str, targe
         ad_rna.obsm["X_tsne_joint"] = ad_rna.obsm["X_tsne"]
 
     ncl = int(ad_rna.obs["leiden_joint"].nunique())
-    say(logger, f"[leiden] Found {ncl} clusters at res={resolution}")
+    say(logger, f"[leiden] (MULTIVISPLICE) Found {ncl} clusters at res={resolution}")
 
     # Plots
-    say(logger, "[plot] Saving UMAP colored by Leiden")
+    say(logger, "[plot] Saving UMAP colored by Leiden (MULTIVISPLICE)")
     fig, ax = plt.subplots(figsize=(8, 6))
     sc.pl.embedding(ad_rna, basis="X_umap_joint", color="leiden_joint",
                     legend_loc="right margin", show=False, ax=ax, frameon=True)
@@ -244,8 +240,31 @@ def run_leiden_umap_joint(model, mdata, ct_key: str, target_celltype: str, targe
     fig.savefig(outdir / "umap_joint_leiden.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
 
+    # UMAP by mouse_id
+    if "mouse_id" in ad_rna.obs:
+        say(logger, "[plot] Saving UMAP colored by mouse_id (MULTIVISPLICE)")
+        fig, ax = plt.subplots(figsize=(8, 6))
+        sc.pl.embedding(ad_rna, basis="X_umap_joint", color="mouse_id",
+                        legend_loc="right margin", show=False, ax=ax, frameon=True)
+        ax.set_title("Joint UMAP | mouse_id")
+        plt.tight_layout()
+        fig.savefig(outdir / "umap_joint_mouse_id.png", dpi=300, bbox_inches="tight")
+        plt.close(fig)
+
+    # UMAP by sex
+    if "sex" in ad_rna.obs:
+        say(logger, "[plot] Saving UMAP colored by sex (MULTIVISPLICE)")
+        fig, ax = plt.subplots(figsize=(8, 6))
+        sc.pl.embedding(ad_rna, basis="X_umap_joint", color="sex",
+                        legend_loc="right margin", show=False, ax=ax, frameon=True)
+        ax.set_title("Joint UMAP | sex")
+        plt.tight_layout()
+        fig.savefig(outdir / "umap_joint_sex.png", dpi=300, bbox_inches="tight")
+        plt.close(fig)
+
+
     if run_tsne:
-        say(logger, "[plot] Saving tSNE colored by Leiden")
+        say(logger, "[plot] Saving tSNE colored by Leiden (MULTIVISPLICE)")
         fig, ax = plt.subplots(figsize=(8, 6))
         sc.pl.embedding(ad_rna, basis="X_tsne_joint", color="leiden_joint",
                         legend_loc="right margin", show=False, ax=ax, frameon=True)
@@ -254,24 +273,16 @@ def run_leiden_umap_joint(model, mdata, ct_key: str, target_celltype: str, targe
         fig.savefig(outdir / "tsne_joint_leiden.png", dpi=300, bbox_inches="tight")
         plt.close(fig)
 
-    # Return the RNA AnnData of the subset, like before
-    return ad_rna
+    # Return the RNA AnnData of the subset
+    return ad_rna, mask_ct
 
-def run_leiden_umap_rna(
-    model,
-    mdata,
-    ct_key: str,
-    target_celltype: str,
-    target_tissues: list[str],
-    resolution: float,
-    run_tsne: bool,
-    outdir: Path,
-    logger: logging.Logger,
-):
-    say(logger, "[latent] Subsetting inside Leiden function and computing RNA latent")
 
-    # Build subset mask on RNA obs
-    ad_rna_full = mdata["rna"]
+def run_leiden_umap_scvi(model_scvi, ad_rna_full, ct_key: str, target_celltype: str,
+                         target_tissues: list[str], resolution: float, run_tsne: bool,
+                         outdir: Path, logger: logging.Logger):
+    say(logger, "[latent] Subsetting inside Leiden function and computing scvi latent (scvi)")
+
+    # subset mask on RNA obs
     mask_ct = ad_rna_full.obs[ct_key] == target_celltype
     if target_tissues and "tissue" in ad_rna_full.obs:
         tt = [t.lower() for t in target_tissues]
@@ -280,63 +291,79 @@ def run_leiden_umap_rna(
     n_keep = int(mask_ct.sum())
     if n_keep == 0:
         raise ValueError(f"No cells matched '{target_celltype}' with tissues={target_tissues}")
-    say(logger, f"[subset] Keeping {n_keep} cells for '{target_celltype}', tissues={target_tissues}")
+    say(logger, f"[subset] (scvi) Keeping {n_keep} cells for '{target_celltype}', tissues={target_tissues}")
 
-    # Slice MuData to target population and extract RNA AnnData
-    m_ct = mdata[mask_ct].copy()
-    ad_rna = m_ct["rna"]
+    # adata subset for scvi path
+    ad_rna_scvi = ad_rna_full[mask_ct].copy()
 
-    # RNA latent for the subset only (no modality arg)
-    Z_rna = model.get_latent_representation(adata=ad_rna)
-    ad_rna.obsm["X_latent_rna"] = Z_rna
+    # scvi latent on the subset ONLY; do not pass modality
+    Z_scvi = model_scvi.get_latent_representation(adata=ad_rna_scvi)
+    ad_rna_scvi.obsm["X_latent_scvi"] = Z_scvi
+    say(logger, f"[latent] Z_scvi shape: {Z_scvi.shape}")
 
-    say(logger, f"[latent] Z_rna shape: {Z_rna.shape}")
+    sc.pp.neighbors(ad_rna_scvi, use_rep="X_latent_scvi", key_added="neighbors_scvi")
+    sc.tl.leiden(ad_rna_scvi, neighbors_key="neighbors_scvi", key_added="leiden_scvi", resolution=resolution)
 
-    # Neighbors + Leiden on the subset
-    sc.pp.neighbors(ad_rna, use_rep="X_latent_rna", key_added="neighbors_rna")
-    sc.tl.leiden(ad_rna, neighbors_key="neighbors_rna", key_added="leiden_rna", resolution=resolution)
-
-    # Embeddings
-    sc.tl.umap(ad_rna, neighbors_key="neighbors_rna")
-    ad_rna.obsm["X_umap_rna"] = ad_rna.obsm["X_umap"]
+    sc.tl.umap(ad_rna_scvi, neighbors_key="neighbors_scvi")
+    ad_rna_scvi.obsm["X_umap_scvi"] = ad_rna_scvi.obsm["X_umap"]
 
     if run_tsne:
-        sc.tl.tsne(ad_rna, use_rep="X_latent_rna", learning_rate=200.0,
+        sc.tl.tsne(ad_rna_scvi, use_rep="X_latent_scvi", learning_rate=200.0,
                    perplexity=30.0, random_state=0)
-        ad_rna.obsm["X_tsne_rna"] = ad_rna.obsm["X_tsne"]
+        ad_rna_scvi.obsm["X_tsne_scvi"] = ad_rna_scvi.obsm["X_tsne"]
 
-    ncl = int(ad_rna.obs["leiden_rna"].nunique())
-    say(logger, f"[leiden] Found {ncl} clusters at res={resolution}")
+    ncl = int(ad_rna_scvi.obs["leiden_scvi"].nunique())
+    say(logger, f"[leiden] (scvi) Found {ncl} clusters at res={resolution}")
 
     # Plots
-    say(logger, "[plot] Saving UMAP colored by Leiden (RNA)")
+    say(logger, "[plot] Saving UMAP colored by Leiden (scvi)")
     fig, ax = plt.subplots(figsize=(8, 6))
-    sc.pl.embedding(ad_rna, basis="X_umap_rna", color="leiden_rna",
+    sc.pl.embedding(ad_rna_scvi, basis="X_umap_scvi", color="leiden_scvi",
                     legend_loc="right margin", show=False, ax=ax, frameon=True)
-    ax.set_title(f"RNA UMAP | Leiden res={resolution}")
+    ax.set_title(f"scvi UMAP | Leiden res={resolution}")
     plt.tight_layout()
-    fig.savefig(outdir / "umap_rna_leiden.png", dpi=300, bbox_inches="tight")
+    fig.savefig(outdir / "umap_scvi_leiden.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-    if run_tsne:
-        say(logger, "[plot] Saving tSNE colored by Leiden (RNA)")
+    # UMAP by mouse_id
+    if "mouse_id" in ad_rna_scvi.obs:
+        say(logger, "[plot] Saving UMAP colored by mouse_id (scvi)")
         fig, ax = plt.subplots(figsize=(8, 6))
-        sc.pl.embedding(ad_rna, basis="X_tsne_rna", color="leiden_rna",
+        sc.pl.embedding(ad_rna_scvi, basis="X_umap_scvi", color="mouse_id",
                         legend_loc="right margin", show=False, ax=ax, frameon=True)
-        ax.set_title(f"RNA tSNE | Leiden res={resolution}")
+        ax.set_title("scvi UMAP | mouse_id")
         plt.tight_layout()
-        fig.savefig(outdir / "tsne_rna_leiden.png", dpi=300, bbox_inches="tight")
+        fig.savefig(outdir / "umap_scvi_mouse_id.png", dpi=300, bbox_inches="tight")
         plt.close(fig)
 
-    # Return the RNA AnnData of the subset
-    return ad_rna
+    # UMAP by sex
+    if "sex" in ad_rna_scvi.obs:
+        say(logger, "[plot] Saving UMAP colored by sex (scvi)")
+        fig, ax = plt.subplots(figsize=(8, 6))
+        sc.pl.embedding(ad_rna_scvi, basis="X_umap_scvi", color="sex",
+                        legend_loc="right margin", show=False, ax=ax, frameon=True)
+        ax.set_title("scvi UMAP | sex")
+        plt.tight_layout()
+        fig.savefig(outdir / "umap_scvi_sex.png", dpi=300, bbox_inches="tight")
+        plt.close(fig)
 
+
+    if run_tsne:
+        say(logger, "[plot] Saving tSNE colored by Leiden (scvi)")
+        fig, ax = plt.subplots(figsize=(8, 6))
+        sc.pl.embedding(ad_rna_scvi, basis="X_tsne_scvi", color="leiden_scvi",
+                        legend_loc="right margin", show=False, ax=ax, frameon=True)
+        ax.set_title(f"scvi tSNE | Leiden res={resolution}")
+        plt.tight_layout()
+        fig.savefig(outdir / "tsne_scvi_leiden.png", dpi=300, bbox_inches="tight")
+        plt.close(fig)
+
+    return ad_rna_scvi, mask_ct
 
 
 def run_pairwise_de_ds(model, m_ct, ad_rna_ct, de_delta, ds_delta, fdr,
                        batch_size_post, norm_splicing_function, logger: logging.Logger):
-    say(logger, "[pairwise] Running pairwise DE/DS across subclusters in target population")
-
+    say(logger, "[pairwise] Running pairwise DE/DS across subclusters in target population (labels from MULTIVISPLICE clusters)")
     pairs = []
     de_tables = {}
     ds_tables = {}
@@ -345,7 +372,6 @@ def run_pairwise_de_ds(model, m_ct, ad_rna_ct, de_delta, ds_delta, fdr,
     unique_subs = sorted(pd.unique(clabs), key=lambda x: (len(x), x))
     say(logger, f"[pairwise] Subclusters: {unique_subs}")
 
-    
     for i in range(len(unique_subs)):
         for j in range(i + 1, len(unique_subs)):
             a = unique_subs[i]
@@ -353,7 +379,7 @@ def run_pairwise_de_ds(model, m_ct, ad_rna_ct, de_delta, ds_delta, fdr,
             idx1 = (clabs == a)
             idx2 = (clabs == b)
             key = f"{a}_vs_{b}"
-            say(logger, f"[pairwise] {key}: DE (RNA) …")
+            say(logger, f"[pairwise] {key}: DE (RNA, MULTIVISPLICE) …")
             de_df = model.differential_expression(
                 adata=m_ct,
                 idx1=idx1,
@@ -365,7 +391,7 @@ def run_pairwise_de_ds(model, m_ct, ad_rna_ct, de_delta, ds_delta, fdr,
                 all_stats=True,
                 silent=True,
             )
-            say(logger, f"[pairwise] {key}: DS (splicing PSI) …")
+            say(logger, f"[pairwise] {key}: DS (splicing PSI, MULTIVISPLICE) …")
             ds_df = model.differential_splicing(
                 adata=m_ct,
                 idx1=idx1,
@@ -387,8 +413,91 @@ def run_pairwise_de_ds(model, m_ct, ad_rna_ct, de_delta, ds_delta, fdr,
             ds_tables[key] = ds_df
             say(logger, f"[pairwise] {key}: done")
 
-    say(logger, "[pairwise] All pairwise comparisons complete")
+    say(logger, "[pairwise] All pairwise comparisons complete (MULTIVISPLICE labels)")
     return pairs, de_tables, ds_tables
+
+
+def run_pairwise_with_scvi_labels(multivisplice_model, scvi_model, m_ct_scvi, ad_rna_scvi,
+                                  de_delta, ds_delta, fdr, batch_size_post,
+                                  norm_splicing_function, logger: logging.Logger):
+    """
+    Use scvi-derived Leiden labels.
+    - Run MULTIVISPLICE DS and DE with those idxs.
+    - Also run scvi DE with those idxs.
+    Return:
+      pairs, de_splicevi_tables, ds_tables, de_scvi_tables
+    """
+    say(logger, "[pairwise] Running pairwise analyses with scvi-derived labels")
+    pairs = []
+    de_splicevi = {}
+    ds_tables = {}
+    de_scvi = {}
+
+    clabs = ad_rna_scvi.obs["leiden_scvi"].astype(str).values
+    unique_subs = sorted(pd.unique(clabs), key=lambda x: (len(x), x))
+    say(logger, f"[pairwise] (scvi labels) Subclusters: {unique_subs}")
+
+    for i in range(len(unique_subs)):
+        for j in range(i + 1, len(unique_subs)):
+            a = unique_subs[i]
+            b = unique_subs[j]
+            idx1 = (clabs == a)
+            idx2 = (clabs == b)
+            key = f"{a}_vs_{b}"
+
+            # MULTIVISPLICE DE using scvi labels
+            say(logger, f"[pairwise] {key}: DE (RNA, MULTIVISPLICE; scvi labels) …")
+            de_sp_df = multivisplice_model.differential_expression(
+                adata=m_ct_scvi,
+                idx1=idx1,
+                idx2=idx2,
+                mode="change",
+                delta=de_delta,
+                fdr_target=fdr,
+                batch_size=batch_size_post,
+                all_stats=True,
+                silent=True,
+            )
+
+            # MULTIVISPLICE DS using scvi labels
+            say(logger, f"[pairwise] {key}: DS (splicing PSI, MULTIVISPLICE; scvi labels) …")
+            ds_df = multivisplice_model.differential_splicing(
+                adata=m_ct_scvi,
+                idx1=idx1,
+                idx2=idx2,
+                mode="change",
+                delta=ds_delta,
+                fdr_target=fdr,
+                batch_size=batch_size_post,
+                all_stats=True,
+                silent=True,
+                norm_splicing_function=norm_splicing_function,
+            )
+            if "junction_id" in ds_df.columns:
+                ds_df = ds_df.set_index("junction_id", drop=False)
+
+            # scvi DE using scvi labels; scvi operates on RNA AnnData
+            say(logger, f"[pairwise] {key}: DE (RNA, scvi; scvi labels) …")
+            de_scvi_df = scvi_model.differential_expression(
+                adata=ad_rna_scvi,
+                idx1=idx1,
+                idx2=idx2,
+                mode="change",
+                delta=de_delta,
+                fdr_target=fdr,
+                batch_size=batch_size_post,
+                all_stats=True,
+                silent=True,
+            )
+
+            pairs.append(key)
+            de_splicevi[key] = de_sp_df
+            ds_tables[key] = ds_df
+            de_scvi[key] = de_scvi_df
+            say(logger, f"[pairwise] {key}: done (scvi labels)")
+
+    say(logger, "[pairwise] All pairwise comparisons complete (scvi labels)")
+    return pairs, de_splicevi, ds_tables, de_scvi
 
 
 def summarize_pair(de_df, ds_df, fdr, mdata, logger: logging.Logger):
@@ -422,31 +531,22 @@ def summarize_pair(de_df, ds_df, fdr, mdata, logger: logging.Logger):
         de_gene_names = pd.Series(sig_de.index.astype(str), index=sig_de.index)
 
     # Splicing: map junction var_names -> gene_name (fallback to junction id if missing)
-    # Splicing: map junction var_names -> gene_name (fallback to junction id if missing)
-    # DS: get gene names with preferred fallbacks: ds_df.col -> spl_var -> index
     ds_index = sig_ds.index.astype(str)
 
     if "gene_name" in ds_df.columns:
-        print("gene name is in the dataframe")
-        # use the column directly
         ds_gene_names = ds_df.loc[ds_index, "gene_name"].astype(str)
     else:
         spl_var = mdata["splicing"].var
         if "gene_name" in spl_var.columns:
-            print("gene name is in the splicing var columns")
             spl_name_map = spl_var["gene_name"].astype(str)
-            print(spl_name_map)
             spl_name_map.index = spl_var.index.astype(str)
             fallback = pd.Series(ds_index, index=ds_index)
             ds_gene_names = spl_name_map.reindex(ds_index).fillna(fallback).astype(str)
         else:
             ds_gene_names = pd.Series(ds_index, index=sig_ds.index)
 
-
     de_genes_set = set(de_gene_names.values.astype(str))
-    print(de_genes_set)
     ds_genes_set = set(ds_gene_names.values.astype(str))
-    print(ds_genes_set)
     gene_overlap = sorted(de_genes_set.intersection(ds_genes_set))
 
     summary = {
@@ -457,7 +557,6 @@ def summarize_pair(de_df, ds_df, fdr, mdata, logger: logging.Logger):
     }
     say(logger, f"[summary] sig DE={summary['n_sig_de']} | sig DS={summary['n_sig_ds']} | gene-overlap={summary['n_overlap_genes']}")
     return summary, sig_de, sig_ds
-
 
 
 def demo_overlays(model, mdata, m_ct, ad_rna, ct_key, target_celltype,
@@ -471,7 +570,7 @@ def demo_overlays(model, mdata, m_ct, ad_rna, ct_key, target_celltype,
     say(logger, f"[overlay] Demo junction={junc} | gene={gene}")
 
     # Build the same target mask for overlays
-    mask_ct = ad_rna.obs[ct_key] == target_celltype
+    _ = ad_rna.obs[ct_key] == target_celltype  # retained for clarity
     m_ct = m_ct[ad_rna.obs_names]
 
     # Get normalized values
@@ -481,7 +580,7 @@ def demo_overlays(model, mdata, m_ct, ad_rna, ct_key, target_celltype,
     # Plot directly on ad_rna view of the same cells
     ad_plot = ad_rna
 
-    if junc in m_ct["splicing"].var["junction_id"]:
+    if "junction_id" in m_ct["splicing"].var.columns and junc in m_ct["splicing"].var["junction_id"]:
         j_idx = m_ct["splicing"].var["junction_id"].get_loc(junc)
         ad_plot.obs[f"PSI::{junc}"] = psi[:, j_idx]
         say(logger, f"[overlay] Saving PSI overlay for {junc}")
@@ -508,63 +607,83 @@ def demo_overlays(model, mdata, m_ct, ad_rna, ct_key, target_celltype,
 
 def main():
     args = parse_args()
-    say(logger, f"[mode] Running model type: {args.model_type}")
 
     # Create timestamped OUTDIR
-    model_name = Path(args.model_dir).name
+    splicevi_model_name = Path(args.model_dir).name
+    scvi_model_name = Path(args.scvi_model_dir).name
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    outdir = Path(args.base_outdir) / f"{stamp}__{model_name}"
+    outdir = Path(args.base_outdir) / f"{stamp}__MVISP_{splicevi_model_name}__SCVI_{scvi_model_name}"
     outdir.mkdir(parents=True, exist_ok=True)
     logger = setup_logger(outdir)
 
     say(logger, f"[env] scvi-tools {scvi.__version__} | scanpy {sc.__version__} | torch {torch.__version__}")
-    say(logger, f"[args] model_dir={args.model_dir}")
+    say(logger, f"[args] MULTIVISPLICE model_dir={args.model_dir}")
+    say(logger, f"[args] scvi model_dir={args.scvi_model_dir}")
     say(logger, f"[args] mudata_path={args.mudata_path}")
     say(logger, f"[args] outdir={outdir}")
 
-    # Load MuData in memory so we can write to .obs/.obsm without implicit copies
+    # Load MuData in memory
     if not os.path.exists(args.mudata_path):
         say(logger, f"[error] MuData not found: {args.mudata_path}")
         sys.exit(1)
     say(logger, "[load] Reading MuData …")
     mdata = mu.read_h5mu(args.mudata_path)  # no backed mode
-    print(mdata["splicing"].var)
-    print(mdata["splicing"].var["gene_name"])
+
     say(logger, f"[load] Modalities: {list(mdata.mod.keys())}")
 
     # Choose celltype key but do not subset here
     ct_key_available = pick_celltype_key(mdata["rna"], args.preferred_celltype_col, args.fallback_celltype_col)
     say(logger, f"[subset] Using celltype column: {ct_key_available}")
 
-    # Setup registry on full data
-    if args.model_type == "splicevi":
-        say(logger, "[setup] Configuring scvi registries for MULTIVISPLICE")
-        scvi.model.MULTIVISPLICE.setup_mudata(
-            mdata,
-            batch_key=None,
-            size_factor_key="X_library_size",
-            rna_layer="length_norm",
-            junc_ratio_layer=args.x_layer,
-            atse_counts_layer=args.cluster_counts_layer,
-            junc_counts_layer=args.junction_counts_layer,
-            psi_mask_layer=args.mask_layer,
-            modalities={"rna_layer": "rna", "junc_ratio_layer": "splicing"},
-        )
-        say(logger, "[model] Loading MULTIVISPLICE model …")
-        model = scvi.model.MULTIVISPLICE.load(args.model_dir, adata=mdata)
-        say(logger, "[model] Loaded.")
+    # Setup registry on full data for MULTIVISPLICE
+    say(logger, "[setup] Configuring scvi registries for MULTIVISPLICE")
 
-    else:
-        say(logger, "[setup] Configuring scvi registries for SCVI (RNA only)")
-        scvi.model.SCVI_Linear.setup_anndata(mdata["rna"], layer="length_norm",  batch_key=None, size_factor_key="X_library_size")
-        say(logger, "[model] Loading SCVI model …")
-        model = scvi.model.SCVI_Linear.load(args.model_dir, adata=mdata["rna"])
-        say(logger, "[model] Loaded.")
+    if "X_library_size" in mdata.obsm_keys():
+        mdata["rna"].obs["X_library_size"] = mdata.obsm["X_library_size"]
+    scvi.model.MULTIVISPLICE.setup_mudata(
+        mdata,
+        batch_key=None,
+        size_factor_key="X_library_size",
+        rna_layer="length_norm",
+        junc_ratio_layer=args.x_layer,
+        atse_counts_layer=args.cluster_counts_layer,
+        junc_counts_layer=args.junction_counts_layer,
+        psi_mask_layer=args.mask_layer,
+        modalities={"rna_layer": "rna", "junc_ratio_layer": "splicing"},
+    )
 
-    # Joint Leiden + UMAP (+ optional tSNE) inside function on the subset
-    if args.model_type == "splicevi":
-        ad_rna = run_leiden_umap_joint(
-            model=model,
+    plot_junction_coverage_vs_variance(
+        mdata=mdata,
+        x_layer=args.x_layer,
+        junc_counts_layer=args.junction_counts_layer,
+        mask_layer=args.mask_layer,
+        outdir=outdir,
+        logger=logger,
+    )
+
+    # Load MULTIVISPLICE model
+    if not os.path.isdir(args.model_dir):
+        say(logger, f"[error] MULTIVISPLICE model directory not found: {args.model_dir}")
+        sys.exit(1)
+    say(logger, "[model] Loading trained MULTIVISPLICE model …")
+    mvis_model = scvi.model.MULTIVISPLICE.load(args.model_dir, adata=mdata)
+    say(logger, "[model] MULTIVISPLICE loaded.")
+
+    # Load scvi model; scvi operates on RNA only
+    if not os.path.isdir(args.scvi_model_dir):
+        say(logger, f"[error] scvi model directory not found: {args.scvi_model_dir}")
+        sys.exit(1)
+    say(logger, "[model] Loading trained scvi model …")
+
+
+    scvi_model = scvi.model.SCVI_Linear.load(args.scvi_model_dir, adata=mdata["rna"])
+
+    say(logger, "[model] scvi loaded.")
+
+    # ===== Path 1: MULTIVISPLICE labels + MULTIVISPLICE DE/DS (original workflow) =====
+    if True:
+        ad_rna_joint, mask_ct_joint = run_leiden_umap_joint(
+            model=mvis_model,
             mdata=mdata,
             ct_key=ct_key_available,
             target_celltype=args.target_celltype,
@@ -574,80 +693,142 @@ def main():
             outdir=outdir,
             logger=logger,
         )
-    else:
-        ad_rna = run_leiden_umap_rna(
-            model=model,
-            adata_rna=mdata["rna"],
-            target_celltype=args.target_celltype,
-            target_tissues=args.target_tissues,
-            resolution=args.leiden_resolution,
-            run_tsne=args.run_tsne,
-            outdir=outdir,
+        ad_rna_joint.uns["celltype_key"] = ct_key_available
+
+        # Save cluster labels for the MULTIVISPLICE subset
+        say(logger, "[save] Writing Leiden labels CSV (MULTIVISPLICE)")
+        ad_rna_joint.obs[["leiden_joint"]].to_csv(outdir / "leiden_joint_labels.csv")
+
+        # Build the same subset for DE and DS (MULTIVISPLICE path)
+        m_ct_joint = mdata[mask_ct_joint].copy()
+
+        # Pairwise DE and DS inside the filtered population (MULTIVISPLICE)
+        pairs_joint, de_tables_joint, ds_tables_joint = run_pairwise_de_ds(
+            model=mvis_model,
+            m_ct=m_ct_joint,
+            ad_rna_ct=ad_rna_joint,
+            de_delta=args.de_delta,
+            ds_delta=args.ds_delta,
+            fdr=args.fdr,
+            batch_size_post=args.batch_size_post,
+            norm_splicing_function=args.norm_splicing_function,
             logger=logger,
         )
-    ad_rna.uns["celltype_key"] = ct_key_available
 
-    # Save cluster labels for the subset
-    say(logger, "[save] Writing Leiden labels CSV")
-    ad_rna.obs[["leiden_joint"]].to_csv(outdir / "leiden_joint_labels.csv")
+        # Summaries, CSV dumps (MULTIVISPLICE)
+        summaries_joint = {}
+        sig_de_per_pair_joint = {}
+        sig_ds_per_pair_joint = {}
 
-    # Build the same subset for DE and DS
-    mask_ct = mdata["rna"].obs[ct_key_available] == args.target_celltype
-    if args.target_tissues and "tissue" in mdata["rna"].obs:
-        tt = [t.lower() for t in args.target_tissues]
-        mask_ct &= mdata["rna"].obs["tissue"].astype(str).str.lower().isin(tt)
-    m_ct = mdata[mask_ct].copy()
+        for key in pairs_joint:
+            say(logger, f"[summary] (MULTIVISPLICE) Pair {key}")
+            s, de_sig, ds_sig = summarize_pair(de_tables_joint[key], ds_tables_joint[key], args.fdr, m_ct_joint, logger)
+            summaries_joint[key] = s
+            sig_de_per_pair_joint[key] = de_sig
+            sig_ds_per_pair_joint[key] = ds_sig
 
-    # Pairwise DE and DS inside the filtered population
-    pairs, de_tables, ds_tables = run_pairwise_de_ds(
-        model=model,
-        m_ct=m_ct,
-        ad_rna_ct=ad_rna,
+            say(logger, f"[save] Writing tables for {key} (MULTIVISPLICE labels)")
+            de_tables_joint[key].to_csv(outdir / f"DE_{args.target_celltype}_{key}.csv")
+            ds_tables_joint[key].to_csv(outdir / f"DS_{args.target_celltype}_{key}.csv")
+            de_sig.to_csv(outdir / f"DEsig_{args.target_celltype}_{key}.csv")
+            ds_sig.to_csv(outdir / f"DSsig_{args.target_celltype}_{key}.csv")
+
+        if summaries_joint:
+            pd.DataFrame(summaries_joint).T.to_csv(outdir / "pairwise_summary_MULTIVISPLICE_labels.csv")
+            say(logger, f"[save] Summary CSV → {outdir/'pairwise_summary_MULTIVISPLICE_labels.csv'}")
+        else:
+            say(logger, "[summary] No subcluster pairs found (MULTIVISPLICE)")
+
+        # Demo overlays from first pair if available (MULTIVISPLICE)
+        if pairs_joint:
+            say(logger, f"[overlay] Using first pair {pairs_joint[0]} for demo overlays (MULTIVISPLICE)")
+            demo_overlays(
+                mvis_model, mdata, m_ct_joint, ad_rna_joint,
+                ct_key=ct_key_available,
+                target_celltype=args.target_celltype,
+                ds_sig_df=sig_ds_per_pair_joint[pairs_joint[0]],
+                de_sig_df=sig_de_per_pair_joint[pairs_joint[0]],
+                batch_size_post=args.batch_size_post,
+                outdir=outdir,
+                logger=logger,
+            )
+
+    # ===== Path 2: scvi labels; run MULTIVISPLICE DS+DE and scvi DE =====
+    ad_rna_scvi, mask_ct_scvi = run_leiden_umap_scvi(
+        model_scvi=scvi_model,
+        ad_rna_full=mdata["rna"],
+        ct_key=ct_key_available,
+        target_celltype=args.target_celltype,
+        target_tissues=args.target_tissues,
+        resolution=args.leiden_resolution,
+        run_tsne=args.run_tsne,
+        outdir=outdir,
+        logger=logger,
+    )
+    ad_rna_scvi.uns["celltype_key"] = ct_key_available
+
+    # Save scvi cluster labels for the subset
+    say(logger, "[save] Writing Leiden labels CSV (scvi)")
+    ad_rna_scvi.obs[["leiden_scvi"]].to_csv(outdir / "leiden_scvi_labels.csv")
+
+    # Matched MuData subset for scvi labels
+    m_ct_scvi = mdata[mask_ct_scvi].copy()
+
+    # Pairwise with scvi labels: MULTIVISPLICE DS/DE + scvi DE
+    pairs_scvi, de_splicevi_scviLabels, ds_scviLabels, de_scvi_scviLabels = run_pairwise_with_scvi_labels(
+        multivisplice_model=mvis_model,
+        scvi_model=scvi_model,
+        m_ct_scvi=m_ct_scvi,
+        ad_rna_scvi=ad_rna_scvi,
         de_delta=args.de_delta,
         ds_delta=args.ds_delta,
         fdr=args.fdr,
         batch_size_post=args.batch_size_post,
-        norm_splicing_function = args.norm_splicing_function,
+        norm_splicing_function=args.norm_splicing_function,
         logger=logger,
     )
 
-    # Summaries, CSV dumps
-    summaries = {}
-    sig_de_per_pair = {}
-    sig_ds_per_pair = {}
+    # Summaries and CSV dumps for scvi labels
+    summaries_scvi = {}
+    sig_de_splicevi_per_pair = {}
+    sig_ds_per_pair_scviLabels = {}
+    sig_de_scvi_per_pair = {}
 
-    for key in pairs:
-        say(logger, f"[summary] Pair {key}")
-        s, de_sig, ds_sig = summarize_pair(de_tables[key], ds_tables[key], args.fdr, m_ct, logger)
-        summaries[key] = s
-        sig_de_per_pair[key] = de_sig
-        sig_ds_per_pair[key] = ds_sig
+    for key in pairs_scvi:
+        say(logger, f"[summary] (scvi labels) Pair {key}")
 
-        say(logger, f"[save] Writing tables for {key}")
-        de_tables[key].to_csv(outdir / f"DE_{args.target_celltype}_{key}.csv")
-        ds_tables[key].to_csv(outdir / f"DS_{args.target_celltype}_{key}.csv")
-        de_sig.to_csv(outdir / f"DEsig_{args.target_celltype}_{key}.csv")
-        ds_sig.to_csv(outdir / f"DSsig_{args.target_celltype}_{key}.csv")
-
-    if summaries:
-        pd.DataFrame(summaries).T.to_csv(outdir / "pairwise_summary.csv")
-        say(logger, f"[save] Summary CSV → {outdir/'pairwise_summary.csv'}")
-    else:
-        say(logger, "[summary] No subcluster pairs found")
-
-    # Demo overlays from first pair if available
-    if pairs:
-        say(logger, f"[overlay] Using first pair {pairs[0]} for demo overlays")
-        demo_overlays(
-            model, mdata, m_ct, ad_rna,
-            ct_key=ct_key_available,
-            target_celltype=args.target_celltype,
-            ds_sig_df=sig_ds_per_pair[pairs[0]],
-            de_sig_df=sig_de_per_pair[pairs[0]],
-            batch_size_post=args.batch_size_post,
-            outdir=outdir,
-            logger=logger,
+        # Summaries for MULTIVISPLICE DE/DS under scvi labels
+        s_sp, de_sig_sp, ds_sig_sp = summarize_pair(
+            de_splicevi_scviLabels[key], ds_scviLabels[key], args.fdr, m_ct_scvi, logger
         )
+        summaries_scvi[key] = s_sp
+        sig_de_splicevi_per_pair[key] = de_sig_sp
+        sig_ds_per_pair_scviLabels[key] = ds_sig_sp
+
+        # Significant for scvi DE alone
+        col_prob_de_scvi = "proba_de" if "proba_de" in de_scvi_scviLabels[key].columns else (
+            "probability" if "probability" in de_scvi_scviLabels[key].columns else None
+        )
+        if col_prob_de_scvi is None:
+            raise RuntimeError("Could not find probability column for scvi DE output")
+        de_sig_scvi = de_scvi_scviLabels[key][de_scvi_scviLabels[key][col_prob_de_scvi] >= 1 - args.fdr]
+        sig_de_scvi_per_pair[key] = de_sig_scvi
+
+        # Write the 6 dataframes per pair for the scvi-label path:
+        # (1) de_splicevi  (2) desig_splicevi  (3) de_scvi  (4) desig_scvi  (5) ds  (6) ds_sig
+        say(logger, f"[save] Writing tables for {key} (scvi labels)")
+        de_splicevi_scviLabels[key].to_csv(outdir / f"DE_splicevi_scviLabels_{args.target_celltype}_{key}.csv")
+        de_sig_sp.to_csv(outdir / f"DEsig_splicevi_scviLabels_{args.target_celltype}_{key}.csv")
+        de_scvi_scviLabels[key].to_csv(outdir / f"DE_scvi_scviLabels_{args.target_celltype}_{key}.csv")
+        de_sig_scvi.to_csv(outdir / f"DEsig_scvi_scviLabels_{args.target_celltype}_{key}.csv")
+        ds_scviLabels[key].to_csv(outdir / f"DS_scviLabels_{args.target_celltype}_{key}.csv")
+        ds_sig_sp.to_csv(outdir / f"DSsig_scviLabels_{args.target_celltype}_{key}.csv")
+
+    if summaries_scvi:
+        pd.DataFrame(summaries_scvi).T.to_csv(outdir / "pairwise_summary_scvi_labels.csv")
+        say(logger, f"[save] Summary CSV → {outdir/'pairwise_summary_scvi_labels.csv'}")
+    else:
+        say(logger, "[summary] No subcluster pairs found (scvi labels)")
 
     say(logger, "[done] Analysis complete.")
 

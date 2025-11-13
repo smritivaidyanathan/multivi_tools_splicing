@@ -5,7 +5,7 @@
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1                  
 #SBATCH --mem=300G               
-#SBATCH --time=24:00:00
+#SBATCH --time=2:00:00
 
 set -euo pipefail
 
@@ -17,9 +17,11 @@ source "${CONDA_BASE}/etc/profile.d/conda.sh"
 conda activate "${ENV_NAME}"
 
 # 2) Paths
-PY="/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/multivi_splice_utils/runfiles/subcluster_diff_splicing_analysis.py"
+PY="/gpfs/commons/home/svaidyanathan/repos/multivi_tools_splicing/multivi_splice_utils/runfiles/subcluser_eval_splicevi_scvi.py"
 
 MODEL_DIR="/gpfs/commons/home/svaidyanathan/splice_vi_partial_vae_sweep/batch_20251105_181440/mouse_trainandtest_REAL_cd=32_mn=50000_ld=25_lr=1e-5_0_scatter_PartialEncoderEDDI_pool=sum/models"
+SCVI_MODEL_DIR="/gpfs/commons/home/svaidyanathan/scvi_age/model"
+
 MUDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUSE_SPLICING_FOUNDATION/MODEL_INPUT/102025/train_70_30_model_ready_combined_gene_expression_aligned_splicing_20251009_024406.h5mu"
 BASE_OUTDIR="/gpfs/commons/home/svaidyanathan/analysis/subcluster_outputs"
 
@@ -33,7 +35,7 @@ TARGET_TISSUES=()
 NORM_SPLICING_FUNCTION="dm_posterior_mean"
 
 DE_DELTA=0.25        # for differential expression
-DS_DELTA=0.10        # for differential splicing PSI
+DS_DELTA=0.20        # for differential splicing PSI
 FDR=0.05
 BATCH_SIZE_POST=256
 RUN_TSNE=0           # set 0 to skip tSNE
@@ -50,6 +52,7 @@ mkdir -p logs
 # 5) Build command
 CMD=(python "$PY"
   --model_dir "$MODEL_DIR"
+  --scvi_model_dir "$SCVI_MODEL_DIR"
   --mudata_path "$MUDATA_PATH"
   --base_outdir "$BASE_OUTDIR"
   --leiden_resolution "$LEIDEN_RES"
